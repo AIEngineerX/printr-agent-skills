@@ -2,7 +2,7 @@
 
 ## Scope
 
-This repository contains **Claude Code skill documentation** for building tokenized-agent revenue loops on Printr POB tokens. The skills teach patterns; they do not ship runtime code you install and execute directly.
+This repository contains **Agent Skill documentation + a reference TypeScript implementation** for building tokenized-agent revenue loops on Printr POB tokens. The skills teach patterns that adopters copy into their own projects; the `src/` library is importable directly for TypeScript consumers.
 
 ### In scope for security reports
 
@@ -113,6 +113,10 @@ If a confirmed issue traces to an upstream dependency, we follow coordinated-dis
 | **Solana Labs** (web3.js, spl-token) | GitHub issue on the relevant repo        |
 
 This repo will **not** publicly disclose unpatched upstream issues before those teams have had reasonable time to patch.
+
+## Threat model
+
+See [`THREAT_MODEL.md`](./THREAT_MODEL.md) for the full breakdown of in-scope threats (kit-level mitigations + tests), adopter-layer threats the kit can't solve (session binding, rate limiting, custody, RPC compromise), and out-of-scope items.
 
 ## Cryptographic caveats
 

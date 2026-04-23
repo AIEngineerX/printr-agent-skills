@@ -54,7 +54,11 @@ export function generateInvoiceParams(opts: {
     throw new Error('price_smallest_unit must be > 0');
   }
   const ttl = opts.durationSeconds ?? 86400;
-  if (ttl <= 0) throw new Error('durationSeconds must be > 0');
+  // `NaN <= 0` is false, so ttl=NaN would otherwise slip through and
+  // produce an invoice with end_time = NaN. Check finite-positive explicitly.
+  if (!Number.isFinite(ttl) || ttl <= 0) {
+    throw new Error('durationSeconds must be > 0');
+  }
 
   // Mask top bit so the 63-bit value fits a signed BIGINT column.
   const memo = crypto.randomBytes(8).readBigUInt64BE() & 0x7fff_ffff_ffff_ffffn;

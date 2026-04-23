@@ -148,9 +148,16 @@ export function instructionIsMemo(ix: Ix, expectedMemo: string): boolean {
   if (ix.programId.toBase58() !== MEMO_PROGRAM_ID) return false;
   // jsonParsed form: { parsed: <memo string> }
   if ('parsed' in ix && typeof ix.parsed === 'string') return ix.parsed === expectedMemo;
-  // Raw form: data is base58-encoded UTF-8 memo bytes
+  // Raw form: data is base58-encoded UTF-8 memo bytes. Any malformed tx in
+  // treasury sig history would otherwise throw inside bs58.decode and break
+  // every subsequent verify call — swallow decode errors and treat as non-match.
+  // System-boundary validation, not defensive-for-no-reason.
   if ('data' in ix && typeof ix.data === 'string') {
-    return Buffer.from(bs58.decode(ix.data)).toString('utf8') === expectedMemo;
+    try {
+      return Buffer.from(bs58.decode(ix.data)).toString('utf8') === expectedMemo;
+    } catch {
+      return false;
+    }
   }
   return false;
 }

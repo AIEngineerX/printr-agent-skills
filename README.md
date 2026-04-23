@@ -210,7 +210,9 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for PR standards, provenance-tagging 
 
 ## Security
 
-See [`SECURITY.md`](./SECURITY.md) for the vulnerability reporting policy, response SLAs, and known non-issues.
+- [`SECURITY.md`](./SECURITY.md) — vulnerability reporting policy, response SLAs, known non-issues.
+- [`THREAT_MODEL.md`](./THREAT_MODEL.md) — what the kit protects against, what the adopter must protect against, and what's out of scope.
+- [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) — residual `npm audit` advisories and runtime assumptions.
 
 ## License
 
