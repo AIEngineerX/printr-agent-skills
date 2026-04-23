@@ -105,6 +105,26 @@ Jupiter returns a base64-serialized `VersionedTransaction`. Your `@solana/web3.j
 
 Full docs: https://station.jup.ag/docs/apis/swap-api
 
+## Shared module constants & helper
+
+All three Jupiter-calling functions below share these. Include once at the top of your module when copying the code:
+
+```typescript
+const JUPITER_BASE = process.env.JUPITER_API_URL ?? 'https://lite-api.jup.ag';
+const JUPITER_TIMEOUT_MS = 10_000;
+
+async function jupiterFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(`${JUPITER_BASE}${path}`, {
+    ...init,
+    signal: AbortSignal.timeout(JUPITER_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    throw new Error(`Jupiter ${path} failed: ${res.status} ${await res.text()}`);
+  }
+  return res;
+}
+```
+
 ## Detecting Pool State (Pre-graduation vs Graduated)
 
 Call quote, inspect the first route. The check itself is cheap (~50ms) — always do it before a buyback:
@@ -117,29 +137,20 @@ export async function getPoolState(
   outputMint: string,
   probeAmount: bigint,
 ): Promise<{ state: PoolState; quote: unknown }> {
-  const jupBase = process.env.JUPITER_API_URL ?? 'https://lite-api.jup.ag';
-  const url = `${jupBase}/swap/v1/quote`
-    + `?inputMint=${inputMint}`
-    + `&outputMint=${outputMint}`
-    + `&amount=${probeAmount}`
-    + `&slippageBps=100`;
-
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) {
-    throw new Error(`Jupiter quote failed: ${res.status} ${await res.text()}`);
-  }
-
+  const qs = new URLSearchParams({
+    inputMint,
+    outputMint,
+    amount: String(probeAmount),
+    slippageBps: '100',
+  });
+  const res = await jupiterFetch(`/swap/v1/quote?${qs}`);
   const quote = await res.json() as { routePlan?: Array<{ swapInfo: { label: string } }> };
-  const plan = quote.routePlan ?? [];
-  if (plan.length === 0) return { state: 'unknown', quote };
 
-  const label = plan[0].swapInfo.label;
+  const label = quote.routePlan?.[0]?.swapInfo.label ?? '';
   if (label.includes('DBC') || label.includes('Dynamic Bonding Curve')) {
     return { state: 'bonding-curve', quote };
   }
-  if (label.includes('DAMM')) {
-    return { state: 'graduated', quote };
-  }
+  if (label.includes('DAMM')) return { state: 'graduated', quote };
   return { state: 'unknown', quote };
 }
 ```
@@ -175,20 +186,16 @@ export async function quoteSwap(params: QuoteParams): Promise<JupiterQuote> {
   if (params.slippageBps <= 0) throw new Error('slippageBps must be > 0');
   if (params.slippageBps > 5000) throw new Error('slippageBps must be <= 5000 (5%)');
 
-  const jupBase = process.env.JUPITER_API_URL ?? 'https://lite-api.jup.ag';
-  const url = `${jupBase}/swap/v1/quote`
-    + `?inputMint=${params.inputMint}`
-    + `&outputMint=${params.outputMint}`
-    + `&amount=${params.amount}`
-    + `&slippageBps=${params.slippageBps}`;
-
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) {
-    throw new Error(`Jupiter quote failed: ${res.status} ${await res.text()}`);
-  }
+  const qs = new URLSearchParams({
+    inputMint: params.inputMint,
+    outputMint: params.outputMint,
+    amount: String(params.amount),
+    slippageBps: String(params.slippageBps),
+  });
+  const res = await jupiterFetch(`/swap/v1/quote?${qs}`);
   const quote = await res.json() as JupiterQuote;
 
-  if (!quote.routePlan || quote.routePlan.length === 0) {
+  if (!quote.routePlan?.length) {
     throw new Error(`No route available for ${params.inputMint} -> ${params.outputMint}`);
   }
   if (quote.outputMint !== params.outputMint) {
@@ -217,7 +224,6 @@ export type BuildSwapParams = {
 export async function buildSwapTransaction(
   params: BuildSwapParams,
 ): Promise<{ tx: VersionedTransaction; lastValidBlockHeight: number }> {
-  const jupBase = process.env.JUPITER_API_URL ?? 'https://lite-api.jup.ag';
   const body = {
     quoteResponse: params.quote,
     userPublicKey: params.userPublicKey.toBase58(),
@@ -233,22 +239,17 @@ export async function buildSwapTransaction(
           },
   };
 
-  const res = await fetch(`${jupBase}/swap/v1/swap`, {
+  const res = await jupiterFetch('/swap/v1/swap', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(10_000),
   });
-  if (!res.ok) {
-    throw new Error(`Jupiter swap build failed: ${res.status} ${await res.text()}`);
-  }
   const { swapTransaction, lastValidBlockHeight } = await res.json() as {
     swapTransaction: string;
     lastValidBlockHeight: number;
   };
 
-  const buf = Buffer.from(swapTransaction, 'base64');
-  const tx = VersionedTransaction.deserialize(buf);
+  const tx = VersionedTransaction.deserialize(Buffer.from(swapTransaction, 'base64'));
   return { tx, lastValidBlockHeight };
 }
 ```

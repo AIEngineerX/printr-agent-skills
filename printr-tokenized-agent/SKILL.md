@@ -219,14 +219,11 @@ export async function startCycle(
   const slippageBps = Number(process.env.BUYBACK_SLIPPAGE_BPS!);
 
   const hotBalanceLamports = BigInt(await connection.getBalance(hotKeypair.publicKey, 'confirmed'));
-  if (hotBalanceLamports < threshold) {
-    return { action: 'noop', reason: 'below_threshold', hotBalance: hotBalanceLamports };
-  }
-
-  // Cap per-cycle size
   const available = hotBalanceLamports - FEE_RESERVE_LAMPORTS;
-  const amountIn = available > maxPerCycle ? maxPerCycle : available;
-  if (amountIn <= 0n) {
+  const amountIn = available < maxPerCycle ? available : maxPerCycle;
+
+  // Below threshold OR insufficient to cover fee reserve → no-op
+  if (hotBalanceLamports < threshold || amountIn <= 0n) {
     return { action: 'noop', reason: 'below_threshold', hotBalance: hotBalanceLamports };
   }
 
@@ -363,41 +360,41 @@ export type CycleResult =
 export async function runBuybackCycle(): Promise<CycleResult> {
   const connection = new Connection(process.env.SOLANA_RPC_URL!, 'confirmed');
   const hotKeypair = loadHotKeypair();
+  let stage: 'preflight' | 'swap' | 'burn' = 'preflight';
 
-  // Phase 0 — recover any previously-partial cycle before starting new work.
-  const recovery = await findRecoveryCycle(connection, hotKeypair);
-  if (recovery) {
-    const burnSig = await burnAgentTokens(
-      connection,
-      hotKeypair,
-      recovery.id,
-      recovery.amountToBurn,
-    );
-    return { action: 'recovered', cycleId: recovery.id, burnSig, amountBurned: recovery.amountToBurn };
+  try {
+    // Phase 0 — recover any previously-partial cycle before starting new work.
+    const recovery = await findRecoveryCycle(connection, hotKeypair);
+    if (recovery) {
+      stage = 'burn';
+      const burnSig = await burnAgentTokens(connection, hotKeypair, recovery.id, recovery.amountToBurn);
+      return { action: 'recovered', cycleId: recovery.id, burnSig, amountBurned: recovery.amountToBurn };
+    }
+
+    // Phase 1 — fresh cycle (quote + swap).
+    stage = 'swap';
+    const start = await startCycle(connection, hotKeypair);
+    if (start.action === 'noop') {
+      return { action: 'noop', reason: 'below_threshold', hotBalance: start.hotBalance };
+    }
+
+    // Phase 2 — burn.
+    stage = 'burn';
+    const burnSig = await burnAgentTokens(connection, hotKeypair, start.cycleId, start.bought);
+    return {
+      action: 'completed',
+      cycleId: start.cycleId,
+      swapSig: start.swapSig,
+      burnSig,
+      solIn: start.solIn,
+      amountBurned: start.bought,
+    };
+  } catch (e) {
+    // All three phases report structured failures to the scheduler instead of
+    // throwing. Without this wrapper `{ action: 'failed' }` in CycleResult is
+    // unreachable — SCENARIOS.md §4 and §6 both rely on it.
+    return { action: 'failed', stage, error: e instanceof Error ? e.message : String(e) };
   }
-
-  // Phase 1 — fresh cycle.
-  const start = await startCycle(connection, hotKeypair);
-  if (start.action === 'noop') {
-    return { action: 'noop', reason: 'below_threshold', hotBalance: start.hotBalance };
-  }
-
-  // Phase 2 — burn.
-  const burnSig = await burnAgentTokens(
-    connection,
-    hotKeypair,
-    start.cycleId,
-    start.bought,
-  );
-
-  return {
-    action: 'completed',
-    cycleId: start.cycleId,
-    swapSig: start.swapSig,
-    burnSig,
-    solIn: start.solIn,
-    amountBurned: start.bought,
-  };
 }
 ```
 

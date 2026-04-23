@@ -271,22 +271,22 @@ export async function buildPaymentTransaction(params: {
   tx.add(createMemoInstruction(params.memo.toString(), [user]));
 
   // Payment instruction — SOL or SPL.
+  // @solana/web3.js ^1.98 accepts bigint for lamports / transfer amounts,
+  // so no manual conversion is needed on any path below.
   if (params.currency_mint === 'So11111111111111111111111111111111111111112') {
-    // Native SOL transfer. Amount is in lamports.
     tx.add(
       SystemProgram.transfer({
         fromPubkey: user,
         toPubkey: treasury,
-        lamports: params.amount_smallest_unit,  // bigint fits into number for <= 2^53
+        lamports: params.amount_smallest_unit,
       }),
     );
   } else {
-    // SPL token transfer. Need both ATAs (user's source, treasury's destination).
+    // SPL token transfer. Caller is responsible for ensuring treasury's ATA
+    // exists — prepend createAssociatedTokenAccountIdempotentInstruction if
+    // not already guaranteed.
     const sourceAta = await getAssociatedTokenAddress(currencyMint, user);
     const destAta   = await getAssociatedTokenAddress(currencyMint, treasury);
-
-    // Note: we assume treasury's ATA already exists. If it doesn't, add
-    // createAssociatedTokenAccountIdempotentInstruction before this.
     tx.add(
       createTransferCheckedInstruction(
         sourceAta,
@@ -294,7 +294,7 @@ export async function buildPaymentTransaction(params: {
         destAta,
         user,
         params.amount_smallest_unit,
-        6,  // USDC decimals. Hard-coded because we only support USDC for SPL.
+        6,  // USDC decimals — hard-coded; only USDC is supported on the SPL path
         [],
         TOKEN_PROGRAM_ID,
       ),
