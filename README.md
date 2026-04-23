@@ -1,5 +1,7 @@
 # printr-agent-skills
 
+[![test](https://github.com/AIEngineerX/printr-agent-skills/actions/workflows/test.yml/badge.svg)](https://github.com/AIEngineerX/printr-agent-skills/actions/workflows/test.yml)
+
 Agent Skills for building **tokenized-agent revenue loops** on [Printr](https://printr.money) — the omnichain Proof-of-Belief (POB) token launchpad.
 
 Three composable skills:
@@ -169,6 +171,13 @@ Compatibility assessed by inspection of each host's documented runtime + the ski
 | Vercel (Next.js + Cron) | Expected to work — not yet verified live | `vercel.json` crons; validate `CRON_SECRET` header |
 | Cloudflare Workers | Partial — buyback cron requires Node-compat mode | `@solana/web3.js` uses Node APIs; Edge routes for invoice accept/verify are Workers-native |
 | Railway / Fly / generic Node | Expected to work — standard Node runtime | |
+
+## Runtime requirements
+
+- **Node.js 18+** (`AbortSignal.timeout`, modern `crypto.randomBytes` bigint support).
+- **Solana RPC that returns `jsonParsed` instruction data** — Helius, Solana Tracker, Ankr, and PublicNode all do. `@solana/web3.js`'s `getParsedTransactions` requires this for the verifier's matchers to see memo + transfer fields. Raw-only RPCs will break verification.
+- **Postgres 13+ or Neon** — the `payment_invoice` table uses `BIGINT`, `TIMESTAMPTZ`, `CHECK` constraints, and partial indexes. The tests use `pg-mem` as a stand-in; pg-mem has known semantic gaps from real Postgres under concurrent locks — verify your DB handles the `UPDATE ... WHERE status='pending'` pattern before high-traffic deployment.
+- **`@solana/web3.js` `^1.98.0`** — do not mix with `2.x` in the same project.
 
 ## Versioning + rollback
 

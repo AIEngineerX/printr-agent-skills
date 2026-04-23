@@ -5,6 +5,7 @@ import {
   quoteSwap,
   buildSwapTransaction,
   getPoolState,
+  getPoolStateOrThrow,
   JUPITER_BASE,
   JUPITER_TIMEOUT_MS,
 } from '../src/swap/index.js';
@@ -107,6 +108,11 @@ describe('getPoolState — $INKED classifies as graduated', () => {
     const r = await getPoolState(SOL_MINT, INKED_MINT, 10_000_000n);
     expect(r.quote.routePlan[0].swapInfo.ammKey).toBeTypeOf('string');
     expect(r.quote.routePlan[0].swapInfo.ammKey.length).toBeGreaterThan(30);
+  });
+
+  it('getPoolStateOrThrow returns same graduated result', async () => {
+    const r = await getPoolStateOrThrow(SOL_MINT, INKED_MINT, 10_000_000n);
+    expect(r.state).toBe('graduated');
   });
 });
 

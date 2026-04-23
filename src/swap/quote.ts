@@ -7,7 +7,10 @@ export interface QuoteParams {
   slippageBps: number;
 }
 
-/** Caller MUST abort on 'unknown' — Jupiter found a route but we couldn't classify the venue. */
+/** Permissive pool-state lookup. Returns 'unknown' instead of throwing when
+ *  the AMM label doesn't match known patterns — use this for diagnostic code
+ *  that wants to inspect the raw quote on unclassified venues. Buyback crons
+ *  should use `getPoolStateOrThrow` instead. */
 export async function getPoolState(
   inputMint: string,
   outputMint: string,
@@ -28,6 +31,26 @@ export async function getPoolState(
   }
   if (label.includes('DAMM')) return { state: 'graduated', quote };
   return { state: 'unknown', quote };
+}
+
+/** Strict pool-state lookup for production code paths (buyback crons).
+ *  Throws on 'unknown' — if the AMM label doesn't match our known patterns,
+ *  Meteora may have renamed them and our classification is stale. Abort
+ *  rather than proceed with an unclassified venue. */
+export async function getPoolStateOrThrow(
+  inputMint: string,
+  outputMint: string,
+  probeAmount: bigint,
+): Promise<{ state: 'bonding-curve' | 'graduated'; quote: JupiterQuote }> {
+  const { state, quote } = await getPoolState(inputMint, outputMint, probeAmount);
+  if (state === 'unknown') {
+    const label = quote.routePlan?.[0]?.swapInfo.label ?? '(missing)';
+    throw new Error(
+      `getPoolState: unclassified AMM label "${label}" for ${inputMint} -> ${outputMint}. ` +
+        `Meteora may have renamed its labels — update the classifier or pin @solana/* deps.`,
+    );
+  }
+  return { state, quote };
 }
 
 export async function quoteSwap(params: QuoteParams): Promise<JupiterQuote> {
