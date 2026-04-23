@@ -170,6 +170,20 @@ Compatibility assessed by inspection of each host's documented runtime + the ski
 | Cloudflare Workers | Partial — buyback cron requires Node-compat mode | `@solana/web3.js` uses Node APIs; Edge routes for invoice accept/verify are Workers-native |
 | Railway / Fly / generic Node | Expected to work — standard Node runtime | |
 
+## Versioning + rollback
+
+**Pin to a tag, not to `main`.** The `main` branch is a moving target; adopters should anchor to a released version.
+
+```bash
+git clone --branch v0.1.0 --depth 1 https://github.com/AIEngineerX/printr-agent-skills.git
+```
+
+- `0.x.y` is **pre-production**. Breaking changes may land on any bump. Version `1.0.0` will be cut after at least one production buyback cycle runs successfully on a live consumer.
+- Post-`1.x`, the project follows strict SemVer.
+- Release notes: [`CHANGELOG.md`](./CHANGELOG.md). Tags: [releases](https://github.com/AIEngineerX/printr-agent-skills/releases).
+
+To roll back: check out a previous tag or revert the skills folder in your local install to the previous version's copy.
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for PR standards, provenance-tagging rules, and how to add a new sibling skill (e.g. a `printr-stake` primitive).

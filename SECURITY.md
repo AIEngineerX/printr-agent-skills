@@ -81,6 +81,12 @@ Skills recommend a capped hot-wallet pattern via `BUYBACK_MAX_LAMPORTS` (default
 
 This kit has **no shared authentication artifact** across adopters. No embedded API keys, no shared JWTs, no hosted authority. Every adopter's deployment is fully self-contained — compromise of one adopter does not affect others.
 
+### Transitive `bigint-buffer` CVE-2025-3194
+
+One residual high-severity `npm audit` advisory traces to `bigint-buffer@1.1.5` (pulled transitively via `@solana/spl-token → @solana/buffer-layout-utils`). The upstream package is abandoned (last publish 2019); no patched version or maintained fork exists. Our code never invokes the vulnerable `toBigIntLE()` path directly, and the buffers our SPL calls consume come from Solana RPC responses, not user input. Full rationale + monitoring stance: [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
+
+Reports that rediscover this specific advisory will be closed as known; reports that demonstrate a new exploitation path **through this repo's public API** are in-scope.
+
 ### Memo collision
 
 The skill generates memos via `crypto.randomBytes(8).readBigUInt64BE() & 0x7fff_ffff_ffff_ffffn` — a 63-bit uniform-random value. Collision probability is ~1 in 2^63 per invoice generation. The DB `UNIQUE` constraint on the memo column catches the astronomical-odds collision cleanly. Reports claiming "memos could collide" will be answered with this math unless they include a demonstration of how an attacker could force collisions.
