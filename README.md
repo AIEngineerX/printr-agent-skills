@@ -7,6 +7,8 @@
 
 Agent Skills for building **tokenized-agent revenue loops** on [Printr](https://printr.money) — the omnichain Proof-of-Belief (POB) token launchpad.
 
+> **Works with any agent that reads YAML skill frontmatter.** Tested on Claude Code; compatible by design with GitHub Copilot CLI, Gemini CLI, Cursor, and other CLIs that adopt the same skill format. Also usable as a plain TypeScript library via `import from '@printr/agent-skills/...'`. See [Install — any agent that supports the skill format](#install--any-agent-that-supports-the-skill-format) for per-agent paths.
+
 Three composable skills:
 
 - **`printr-swap`** — Jupiter-routed buy/sell on Meteora DBC or DAMM v2 pools. Standalone primitive; testable with a 0.001 SOL quote.
@@ -48,7 +50,7 @@ Each sub-skill is independently usable. Skip `printr-tokenized-agent` if you onl
 
 ## Install — any agent that supports the skill format
 
-The YAML frontmatter format used here is supported by most modern agent CLIs. Drop the three skill directories into your agent's skills folder.
+The kit is **agent-agnostic**. The YAML frontmatter format (`name` + `description`) used in every `SKILL.md` is the cross-agent standard adopted by Claude Code, GitHub Copilot CLI, and Gemini CLI. Cursor and rule-based IDEs can use the skill body manually. Drop the three skill directories into your agent's skills folder.
 
 ### Claude Code
 
