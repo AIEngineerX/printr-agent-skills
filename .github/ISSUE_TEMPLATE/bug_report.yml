@@ -4,29 +4,13 @@ labels: ['bug']
 body:
   - type: markdown
     attributes:
-      value: |
-        Thanks for the report. For security issues, please see SECURITY.md and do NOT open a public issue.
+      value: For security issues, see SECURITY.md — do NOT open a public issue.
 
   - type: input
     id: version
     attributes:
-      label: Version
-      description: Git tag or commit SHA you were using
-      placeholder: v0.1.0
-    validations:
-      required: true
-
-  - type: dropdown
-    id: area
-    attributes:
-      label: Area
-      options:
-        - printr-swap
-        - printr-agent-payments
-        - printr-tokenized-agent
-        - src/ library
-        - CI / tooling
-        - docs
+      label: Version or commit
+      placeholder: v0.1.0 or a commit SHA
     validations:
       required: true
 
@@ -34,7 +18,7 @@ body:
     id: what-happened
     attributes:
       label: What happened
-      description: Actual behavior. Paste the error, logs, and stack trace if you have them.
+      description: Include the error, logs, and stack trace if you have them.
     validations:
       required: true
 
@@ -49,29 +33,13 @@ body:
     id: repro
     attributes:
       label: Minimal reproduction
-      description: Commands or code that triggers the bug. If you can isolate it to a test case, that is ideal.
+      description: Commands or code that triggers it. A failing test case is ideal.
     validations:
       required: true
 
   - type: input
-    id: node-version
+    id: env
     attributes:
-      label: Node version
-      placeholder: '20.11.0'
-    validations:
-      required: true
-
-  - type: input
-    id: os
-    attributes:
-      label: OS
-      placeholder: 'macOS 14.3 / Ubuntu 22.04 / Windows 11'
-    validations:
-      required: true
-
-  - type: input
-    id: rpc
-    attributes:
-      label: RPC provider
-      description: Which Solana RPC are you using? Helius, Ankr, custom, etc.
-      placeholder: 'Helius free tier'
+      label: Environment
+      description: Node version, OS, RPC provider — whatever's relevant.
+      placeholder: 'Node 20, macOS 14, Helius free tier'
