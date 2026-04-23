@@ -36,7 +36,13 @@ Every threat is analyzed assuming:
 
 **Attack**: pool moves between quote and fill; swap confirms but delivers less than expected.
 
-**Mitigation**: `verifySwapOutput` reads the ATA balance after confirmation and throws if below `quote.otherAmountThreshold`. The orphan balance is picked up by `findRecoveryCycle` next tick.
+**Mitigation**: `verifySwapOutput` reads the ATA balance after confirmation and throws `SwapBelowMinimumError` if below `quote.otherAmountThreshold`. `startCycle` catches the typed error and flips the `burn_event` row to `status='failed'` with the error message recorded — the partial fill stays in the ATA but is **not** auto-burned; operator review is required (see `tokenized-agent/references/SCENARIOS.md` Scenario 5 for the reconciliation path).
+
+### Post-swap RPC read failure
+
+**Fault**: swap confirms on-chain; the subsequent ATA read inside `verifySwapOutput` fails for transport reasons (timeout, 5xx, connection reset) — distinct from a slippage bust because the on-chain state is unknown to the caller.
+
+**Mitigation**: `startCycle` writes the `burn_event` row with `status='swap_done'` immediately after swap confirmation, **before** the ATA re-read. A thrown non-`SwapBelowMinimumError` leaves the row in place; next tick, `findRecoveryCycle` sees the non-zero ATA balance, finds the open row, and burns the actual (now-readable) amount.
 
 ### Swap-succeeds-burn-fails
 

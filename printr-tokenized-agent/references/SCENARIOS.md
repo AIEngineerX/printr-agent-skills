@@ -58,14 +58,18 @@ Six end-to-end scenarios covering the composed loop. Each walks through `runBuyb
 
 1. Cycle starts. `amountIn=290M`. Quote returns `outAmount=750B, otherAmountThreshold=742.5B`.
 2. Between quote and submission, another trade drains the pool. Our swap tx confirms but fills at `600_000_000_000` — 20% worse than quoted.
-3. `verifySwapOutput(...expected 742_500_000_000)` throws: `"swap output below minimum: got 600000000000, expected >= 742500000000"`.
-4. **This is correct behavior.** The swap _did_ go through — tokens are in the ATA — but they're below tolerance.
-5. **What happens next:**
-   - The `startCycle` function throws. `runBuybackCycle` propagates.
-   - NO `burn_event` row was written (the INSERT happens AFTER `verifySwapOutput` succeeds).
-   - Hot wallet now holds 600B orphan tokens AND no DB record → triggers Scenario 4 on next cycle.
-6. **Operator action:** follow Scenario 4's "manual fix" path. Alternatively: tighten `BUYBACK_SLIPPAGE_BPS` or lower `BUYBACK_MAX_LAMPORTS` so future cycles are less likely to bust.
-7. **Skill hardening note:** an adopter who wants to _keep the cycle going on slippage bust_ can wrap `verifySwapOutput` in the INSERT-then-verify order: write the row with `agent_token_bought = actualAtaBalance` (re-read after swap, not from quote) and accept whatever filled. This trades strict-slippage-enforcement for cycle-continuity. Pick deliberately.
+3. `startCycle` writes the `burn_event` row with `status='swap_done', agent_token_bought=742.5B` (seeded from `quote.otherAmountThreshold`) immediately after swap confirmation.
+4. `verifySwapOutput(...expected 742_500_000_000)` throws `SwapBelowMinimumError`: `"swap output below minimum: got 600000000000, expected >= 742500000000"`.
+5. **This is correct behavior.** The swap _did_ go through — tokens are in the ATA — but they're below tolerance.
+6. **What happens next:**
+   - `startCycle` catches `SwapBelowMinimumError`, flips the row to `status='failed', error='swap output below minimum: …'`, and rethrows.
+   - `runBuybackCycle` returns `{ action: 'failed', stage: 'swap', error: '…' }`.
+   - Hot wallet holds 600B tokens. The DB has a `failed` row — not a `swap_done` row — so `findRecoveryCycle` does NOT auto-burn the partial fill on the next cycle. Operator review is required.
+7. **Operator action:** inspect the `burn_event` row (`id=<cycleId>, status='failed'`). Options:
+   - **Accept the partial fill**: `UPDATE burn_event SET status='swap_done' WHERE id=$1`. Next cron's `findRecoveryCycle` will read the 600B ATA balance and burn it.
+   - **Reject and move funds**: transfer the 600B tokens out of the hot wallet to cold, and mark the row resolved (e.g. `UPDATE burn_event SET completed_at=now() WHERE id=$1`).
+   - **Prevent recurrence**: tighten `BUYBACK_SLIPPAGE_BPS` or lower `BUYBACK_MAX_LAMPORTS` so future cycles are less likely to bust.
+8. **Distinguishing slippage bust from transient RPC failure:** if `verifySwapOutput` throws for any reason other than `SwapBelowMinimumError` (e.g. `getAccount` RPC timeout after the swap confirmed), the row stays `status='swap_done'` and `findRecoveryCycle` picks up the ATA balance next tick — see Scenario 3.
 
 ## Scenario 6: Jupiter Route Missing — Pre-Graduation or Un-Indexed
 

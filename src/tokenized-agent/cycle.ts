@@ -10,6 +10,7 @@ import {
   buildSwapTransaction,
   executeServerSwap,
   verifySwapOutput,
+  SwapBelowMinimumError,
 } from '../swap/index.js';
 import { WSOL_MINT } from '../payments/constants.js';
 import type { QueryablePool } from '../payments/verify.js';
@@ -89,26 +90,48 @@ export async function startCycle(cfg: CycleConfig): Promise<StartCycleResult> {
 
   const swapSig = await executeServerSwap(cfg.connection, tx, lastValidBlockHeight, cfg.hotKeypair);
 
-  const actualOut = await verifySwapOutput(
-    cfg.connection,
-    cfg.agentTokenMint,
-    cfg.hotKeypair.publicKey,
-    BigInt(quote.otherAmountThreshold),
-  );
-
-  // Record the swap BEFORE the burn runs. If the burn fails after this,
-  // findRecoveryCycle picks up the orphan balance next cycle.
-  const { rows } = await cfg.pool.query(
+  // Record the swap_done row IMMEDIATELY after swap confirmation. Any failure
+  // past this point leaves a durable row: RPC errors inside verifySwapOutput
+  // keep status='swap_done' so findRecoveryCycle picks up the ATA balance next
+  // tick; a real slippage bust is caught below and flips the row to 'failed'
+  // so recovery does not auto-burn a partial fill without operator review.
+  // agent_token_bought is seeded with the quote's minimum and rewritten with
+  // the verified amount on the happy path.
+  const inserted = await cfg.pool.query(
     `INSERT INTO burn_event
        (sol_in_lamports, agent_token_bought, agent_token_burned, swap_sig, status)
      VALUES ($1, $2, 0, $3, 'swap_done')
      RETURNING id`,
-    [amountIn.toString(), actualOut.toString(), swapSig],
+    [amountIn.toString(), quote.otherAmountThreshold, swapSig],
   );
+  const cycleId = Number(inserted.rows[0].id);
+
+  let actualOut: bigint;
+  try {
+    actualOut = await verifySwapOutput(
+      cfg.connection,
+      cfg.agentTokenMint,
+      cfg.hotKeypair.publicKey,
+      BigInt(quote.otherAmountThreshold),
+    );
+  } catch (e) {
+    if (e instanceof SwapBelowMinimumError) {
+      await cfg.pool.query(`UPDATE burn_event SET status = 'failed', error = $1 WHERE id = $2`, [
+        e.message,
+        cycleId,
+      ]);
+    }
+    throw e;
+  }
+
+  await cfg.pool.query(`UPDATE burn_event SET agent_token_bought = $1 WHERE id = $2`, [
+    actualOut.toString(),
+    cycleId,
+  ]);
 
   return {
     action: 'swapped',
-    cycleId: Number(rows[0].id),
+    cycleId,
     swapSig,
     bought: actualOut,
     solIn: amountIn,

@@ -40,7 +40,7 @@ These are the parents we bump manually; their transitive tree dictates our audit
 | `@solana/web3.js`          | `^1.98.0` | `2.x` is a breaking API redesign; we stay on `1.x` until the ecosystem migrates |
 | `@solana/spl-token`        | `^0.4.0`  | API we rely on landed in `0.4.x`; downgrading breaks every SPL call site        |
 | `bs58`                     | `^6.0.0`  | Stable, no known vulns                                                          |
-| `@neondatabase/serverless` | `^0.9.0`  | Stable                                                                          |
+| `@neondatabase/serverless` | `^1.1.0`  | Stable                                                                          |
 
 ## Runtime assumptions
 

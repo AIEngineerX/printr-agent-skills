@@ -41,11 +41,12 @@ Five scenarios. Run each against a **small** amount (0.001 SOL) first to exercis
 1. Buyback cycle runs. Quote `otherAmountThreshold` = 250,000,000,000 (250 tokens).
 2. Pool liquidity drops between quote and swap submission (common under high volatility).
 3. Swap confirms, but fills at 200,000,000,000 — 20% worse than quoted.
-4. `verifySwapOutput` throws `"swap output below minimum: got 200000000000, expected >= 250000000000"`.
-5. **Expected caller behavior:** this is a deliberate failure — the tx still went through on-chain (tokens are in the ATA, just less than expected). The caller treats the cycle as partially completed:
-   - Record the actual `amount` received in `burn_event` with a `status='slippage_bust'` flag.
-   - Burn the actual received amount (not the quoted amount).
-   - Do not retry the swap — next cycle will pick up from the new hot balance.
+4. `verifySwapOutput` throws a typed `SwapBelowMinimumError`: `"swap output below minimum: got 200000000000, expected >= 250000000000"`. The error carries `actual` and `minimum` as `bigint` properties for structured handling.
+5. **Expected caller behavior:** this is a deliberate failure — the tx still went through on-chain (tokens are in the ATA, just less than expected). The caller can:
+   - Catch `SwapBelowMinimumError` specifically (via `instanceof`) and distinguish it from RPC read failures, which throw the underlying `getAccount` error type.
+   - Mark their cycle row as failed (`printr-tokenized-agent` uses `burn_event.status='failed'` with the error message recorded).
+   - Decide between burning the partial fill anyway or leaving it parked for operator review.
+   - Do not retry the swap blindly — next cycle will pick up from the new hot balance; unconditional retry on slippage bust can rapidly drain the hot wallet in a volatile pool.
 
 ---
 

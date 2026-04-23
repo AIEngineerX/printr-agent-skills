@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Dependencies
+- `@neondatabase/serverless` bumped `^0.9.0` → `^1.1.0` (PR #4). Test suite still green against pg-mem; live-Neon validation remains adopter-side per `KNOWN_ISSUES.md`.
+- Dev-deps group bumped (PR #3).
+
 ## [0.1.0] — 2026-04-23
 
 First tagged release. **Pre-production** — the kit has not yet run a full buyback cycle on a live mainnet integration. Version `0.x` until at least one production cycle lands on the reference implementation ($INKED).

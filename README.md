@@ -161,7 +161,7 @@ Grep for `[derived]` in any SKILL.md to see exactly what's my call vs. what's up
 
 ## Reference Implementation (pre-launch)
 
-[`github.com/AIEngineerX/inked`](https://github.com/AIEngineerX/inked) — **$INKED**, intended as the first production consumer. **Not yet running a live cycle** — the kit's code is test-covered (68 unit + integration tests across the three skills, live-validated against Jupiter + $INKED) but no buyback has been executed in production yet. This section will be updated with "live since" and cycle stats when $INKED's integration lands.
+[`github.com/AIEngineerX/inked`](https://github.com/AIEngineerX/inked) — **$INKED**, intended as the first production consumer. **Not yet running a live cycle** — the kit's code is test-covered (96 unit + integration tests across the three skills, live-validated against Jupiter + $INKED) but no buyback has been executed in production yet. This section will be updated with "live since" and cycle stats when $INKED's integration lands.
 
 | Project                       | Token                                          | Status                           | Notes                                 |
 | ----------------------------- | ---------------------------------------------- | -------------------------------- | ------------------------------------- |
