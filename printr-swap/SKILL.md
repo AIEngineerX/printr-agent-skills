@@ -125,7 +125,7 @@ async function jupiterFetch(path: string, init: RequestInit = {}): Promise<Respo
 
 ## Detecting Pool State (Pre-graduation vs Graduated)
 
-Call quote, inspect the first route. The check itself is cheap (~50ms) — always do it before a buyback:
+Call quote, inspect the first route. The check itself is cheap (~50–150ms) — always do it before a buyback. Callers MUST handle `'unknown'` explicitly — do not treat it as "safe to proceed". An unknown label means Jupiter found a route but we couldn't classify the venue; the safest action is to abort and investigate, or tighten `slippageBps` and retry.
 
 ```typescript
 type PoolState = 'bonding-curve' | 'graduated' | 'unknown';
@@ -149,7 +149,7 @@ export async function getPoolState(
     return { state: 'bonding-curve', quote };
   }
   if (label.includes('DAMM')) return { state: 'graduated', quote };
-  return { state: 'unknown', quote };
+  return { state: 'unknown', quote };  // caller MUST handle this; don't proceed on unknown
 }
 ```
 
@@ -273,9 +273,16 @@ export async function executeUserSwap(
     maxRetries: 2,
     preflightCommitment: 'confirmed',
   });
-  const { blockhash } = await connection.getLatestBlockhash('confirmed');
+  // Use the blockhash already embedded in the Jupiter-built tx — do not
+  // fetch a fresh one. confirmTransaction must track the same blockhash
+  // the tx was signed against, otherwise the confirmation window doesn't
+  // line up with the actual tx's expiry.
   await connection.confirmTransaction(
-    { signature: sig, blockhash, lastValidBlockHeight },
+    {
+      signature: sig,
+      blockhash: tx.message.recentBlockhash,
+      lastValidBlockHeight,
+    },
     'confirmed',
   );
   return sig;
@@ -320,9 +327,13 @@ export async function executeServerSwap(
     maxRetries: 2,
     preflightCommitment: 'confirmed',
   });
-  const { blockhash } = await connection.getLatestBlockhash('confirmed');
+  // Use the blockhash from the tx itself (set by Jupiter at build time).
   const conf = await connection.confirmTransaction(
-    { signature: sig, blockhash, lastValidBlockHeight },
+    {
+      signature: sig,
+      blockhash: tx.message.recentBlockhash,
+      lastValidBlockHeight,
+    },
     'confirmed',
   );
   if (conf.value.err) {

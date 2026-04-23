@@ -61,15 +61,15 @@ Copy-Item printr-agent-skills\printr-* $env:USERPROFILE\.claude\skills\ -Recurse
 
 ### GitHub Copilot CLI
 
-Copilot auto-discovers skills from installed plugins. Install as a plugin via your Copilot config, or point Copilot at a local clone.
+Copilot's `skill` tool reads the same YAML frontmatter (`name`, `description`) and is **expected** to auto-discover these skills. **Not yet verified** on Copilot CLI — if you're the first, please open a GitHub issue with your experience.
 
 ### Gemini CLI
 
-Activate via `activate_skill` — Gemini CLI reads the same `name` / `description` frontmatter.
+Gemini CLI's `activate_skill` reads the same frontmatter. **Not yet verified** on Gemini — please open an issue with results.
 
 ### Cursor / other rule-based IDEs
 
-Copy the SKILL.md body into your editor's rules directory (e.g. `.cursor/rules/`). The checklists and safety rules still apply; the triggering is manual rather than automatic.
+Cursor uses `.cursor/rules/*.md` rather than an auto-triggered skill format; you can copy the SKILL.md body into a Cursor rules file and trigger manually. **Not yet verified** on Cursor — the skill body is platform-agnostic but the triggering mechanism differs.
 
 ### Project-scoped install (any agent)
 
@@ -149,24 +149,26 @@ Every non-obvious claim in each `SKILL.md` carries a provenance marker so you ca
 
 Grep for `[derived]` in any SKILL.md to see exactly what's my call vs. what's upstream-grounded fact.
 
-## Reference Implementation
+## Reference Implementation (pre-launch)
 
-[`github.com/AIEngineerX/inked`](https://github.com/AIEngineerX/inked) — **$INKED**, the first production consumer of this kit.
+[`github.com/AIEngineerX/inked`](https://github.com/AIEngineerX/inked) — **$INKED**, intended as the first production consumer. **Not yet running a live cycle** — the kit's code is test-covered (68 unit + integration tests across the three skills, live-validated against Jupiter + $INKED) but no buyback has been executed in production yet. This section will be updated with "live since" and cycle stats when $INKED's integration lands.
 
-| Project | Token | Live since | Notes |
+| Project | Token | Status | Notes |
 |---|---|---|---|
-| [$INKED](https://inked.money) | `2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr` | TBD | POB model #1 reference implementation |
+| [$INKED](https://inked.money) | `2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr` | Pre-launch (integration pending) | POB model #1 reference implementation |
 
-Adopters: PR yourself into this table once you've run a production cycle.
+Adopters: PR yourself into this table **after** you've run at least one production buyback cycle — please link to a burn tx on Solscan as evidence.
 
-## Platforms / Hosts Tested
+## Platforms / Hosts — Compatibility Matrix
 
-| Host | Status | Notes |
+Compatibility assessed by inspection of each host's documented runtime + the skill's dependency profile. **None of these hosts have been end-to-end verified with a live cycle yet** — if you're the first to deploy on one of them, please share feedback via a GitHub issue.
+
+| Host | Compatibility | Notes |
 |---|---|---|
-| Netlify (SvelteKit + Scheduled Functions) | Reference | `netlify.toml` cron pattern |
-| Vercel (Next.js + Cron) | Compatible | `vercel.json` crons; validate `CRON_SECRET` |
-| Cloudflare Workers | Partial | Edge endpoints work; buyback cron needs Node-compat mode for `@solana/web3.js` |
-| Railway (Express, Node) | Compatible | Standard Node runtime |
+| Netlify (SvelteKit + Scheduled Functions) | Expected to work — not yet verified live | `netlify.toml` cron pattern; scheduled functions run in Node runtime |
+| Vercel (Next.js + Cron) | Expected to work — not yet verified live | `vercel.json` crons; validate `CRON_SECRET` header |
+| Cloudflare Workers | Partial — buyback cron requires Node-compat mode | `@solana/web3.js` uses Node APIs; Edge routes for invoice accept/verify are Workers-native |
+| Railway / Fly / generic Node | Expected to work — standard Node runtime | |
 
 ## Contributing
 

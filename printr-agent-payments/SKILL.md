@@ -192,6 +192,8 @@ import crypto from 'node:crypto';
 const SOL_MINT  = 'So11111111111111111111111111111111111111112';
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
+const SUPPORTED_MINTS = { SOL: SOL_MINT, USDC: USDC_MINT } as const;
+
 export function generateInvoiceParams(opts: {
   currency: Currency;
   price_smallest_unit: bigint;
@@ -203,22 +205,28 @@ export function generateInvoiceParams(opts: {
   start_time: number;
   end_time: number;
 } {
+  // Validate currency against the supported whitelist. Silent fallback
+  // to USDC on an unknown currency would be catastrophic — reject loudly.
+  if (!(opts.currency in SUPPORTED_MINTS)) {
+    throw new Error(
+      `unknown currency ${String(opts.currency)} — must be one of ${Object.keys(SUPPORTED_MINTS).join(', ')}`,
+    );
+  }
   if (opts.price_smallest_unit <= 0n) {
     throw new Error('price_smallest_unit must be > 0');
   }
   const ttl = opts.durationSeconds ?? 86400;
   if (ttl <= 0) throw new Error('durationSeconds must be > 0');
 
-  // Cryptographically random 64-bit memo. uint64 so it fits both BIGINT
-  // and Memo program's string representation. Range chosen to avoid
-  // leading zeros and keep stringification compact.
+  // Cryptographically random 63-bit memo. Top bit masked off so the
+  // value fits a signed BIGINT column and stringifies compactly.
   const buf = crypto.randomBytes(8);
-  const memo = buf.readBigUInt64BE() & 0x7fff_ffff_ffff_ffffn;  // mask sign bit
+  const memo = buf.readBigUInt64BE() & 0x7fff_ffff_ffff_ffffn;
 
   const now = Math.floor(Date.now() / 1000);
   return {
     memo,
-    currency_mint: opts.currency === 'SOL' ? SOL_MINT : USDC_MINT,
+    currency_mint: SUPPORTED_MINTS[opts.currency],
     amount_smallest_unit: opts.price_smallest_unit,
     start_time: now,
     end_time: now + ttl,
@@ -243,22 +251,44 @@ import {
 } from '@solana/spl-token';
 import { createMemoInstruction } from '@solana/spl-memo';
 
-export async function buildPaymentTransaction(params: {
-  userWallet: string;
-  treasuryReceiver: string;   // process.env.TREASURY_RECEIVER_PUBKEY
-  memo: bigint;
-  currency_mint: string;
-  amount_smallest_unit: bigint;
-  priorityFeeMicroLamports?: number;  // default 100_000
-}): Promise<string> {
-  const connection = new Connection(process.env.SOLANA_RPC_URL!);
+// Per-currency decimals. Wrong decimals = amounts mis-scaled by orders
+// of magnitude, which is catastrophic on the SPL path.
+const DECIMALS: Record<Currency, number> = { SOL: 9, USDC: 6 };
+
+function mintToCurrency(mint: string): Currency | null {
+  if (mint === SOL_MINT) return 'SOL';
+  if (mint === USDC_MINT) return 'USDC';
+  return null;
+}
+
+export async function buildPaymentTransaction(
+  connection: Connection,   // injected — makes this testable against a mock RPC
+  params: {
+    userWallet: string;
+    treasuryReceiver: string;
+    memo: bigint;
+    currency_mint: string;
+    amount_smallest_unit: bigint;
+    priorityFeeMicroLamports?: number;
+  },
+): Promise<string> {
+  // Validate the mint against the whitelist — an unknown mint on the SPL
+  // path would use the wrong decimals and silently mis-scale the transfer.
+  const currency = mintToCurrency(params.currency_mint);
+  if (!currency) {
+    throw new Error(
+      `unsupported currency_mint ${params.currency_mint} — must be one of ${SOL_MINT} (SOL) or ${USDC_MINT} (USDC)`,
+    );
+  }
+  if (params.amount_smallest_unit <= 0n) {
+    throw new Error('amount_smallest_unit must be > 0');
+  }
+
   const user = new PublicKey(params.userWallet);
   const treasury = new PublicKey(params.treasuryReceiver);
-  const currencyMint = new PublicKey(params.currency_mint);
-
   const tx = new Transaction();
 
-  // Priority fee — always prepend.
+  // Priority fee + CU limit — always prepend.
   tx.add(
     ComputeBudgetProgram.setComputeUnitPrice({
       microLamports: params.priorityFeeMicroLamports ?? 100_000,
@@ -267,13 +297,11 @@ export async function buildPaymentTransaction(params: {
   );
 
   // Memo instruction — binds this tx to the invoice row.
-  // Stringify the memo as decimal. Keep it simple; do not base64-encode.
   tx.add(createMemoInstruction(params.memo.toString(), [user]));
 
-  // Payment instruction — SOL or SPL.
-  // @solana/web3.js ^1.98 accepts bigint for lamports / transfer amounts,
-  // so no manual conversion is needed on any path below.
-  if (params.currency_mint === 'So11111111111111111111111111111111111111112') {
+  // Payment instruction — SOL or SPL. web3.js ^1.98 accepts bigint directly
+  // for both lamports and SPL amounts, so no manual conversion below.
+  if (currency === 'SOL') {
     tx.add(
       SystemProgram.transfer({
         fromPubkey: user,
@@ -282,9 +310,10 @@ export async function buildPaymentTransaction(params: {
       }),
     );
   } else {
-    // SPL token transfer. Caller is responsible for ensuring treasury's ATA
-    // exists — prepend createAssociatedTokenAccountIdempotentInstruction if
-    // not already guaranteed.
+    // USDC. Caller is responsible for ensuring the treasury's USDC ATA
+    // exists — prepend createAssociatedTokenAccountIdempotentInstruction
+    // if not already guaranteed.
+    const currencyMint = new PublicKey(params.currency_mint);
     const sourceAta = await getAssociatedTokenAddress(currencyMint, user);
     const destAta   = await getAssociatedTokenAddress(currencyMint, treasury);
     tx.add(
@@ -294,7 +323,7 @@ export async function buildPaymentTransaction(params: {
         destAta,
         user,
         params.amount_smallest_unit,
-        6,  // USDC decimals — hard-coded; only USDC is supported on the SPL path
+        DECIMALS[currency],   // looked up — no hard-coded decimals
         [],
         TOKEN_PROGRAM_ID,
       ),
@@ -330,7 +359,8 @@ export async function createInvoice(
       durationSeconds: req.durationSeconds,
     });
 
-  const txBase64 = await buildPaymentTransaction({
+  const connection = new Connection(process.env.SOLANA_RPC_URL!);
+  const txBase64 = await buildPaymentTransaction(connection, {
     userWallet: req.user_wallet,
     treasuryReceiver: process.env.TREASURY_RECEIVER_PUBKEY!,
     memo,
