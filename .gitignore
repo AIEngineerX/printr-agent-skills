@@ -1,0 +1,25 @@
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# Node — only relevant if someone adds scripts/ with JS code
+node_modules/
+*.log
+npm-debug.log*
+.env
+.env.local
+.env.*.local
+
+# Build artifacts — none expected for a docs-only skill repo, but guard anyway
+dist/
+build/
+.cache/
+
+# Local notes / scratch
+scratch/
+notes.md
+TODO.local.md
