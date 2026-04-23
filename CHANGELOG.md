@@ -11,6 +11,14 @@ First tagged release. **Pre-production** — the kit has not yet run a full buyb
 - `printr-agent-payments` — invoice + on-chain memo-match verification.
 - `printr-tokenized-agent` — composed buyback + burn cycle with recovery mode.
 
+### Cross-agent compatibility
+- Designed to work with any agent CLI that reads YAML skill frontmatter.
+- **Claude Code** — tested end-to-end (reference environment).
+- **GitHub Copilot CLI** — compatible by design via its `skill` tool; not yet user-verified.
+- **Gemini CLI** — compatible by design via `activate_skill`; not yet user-verified.
+- **Cursor / rule-based IDEs** — manual: copy SKILL.md body into `.cursor/rules/`, trigger manually.
+- **Any TypeScript project** — `src/` importable as a plain library, agent-independent.
+
 ### Library (`src/`)
 - TypeScript reference implementation for every skill, importable as a module.
 - 67 tests covering real code paths: live Jupiter integration, pg-mem Postgres for DB flows, real `@solana/web3.js` Transaction serialization, matcher coverage for SOL + USDC + memo instructions.
