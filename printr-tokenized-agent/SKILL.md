@@ -4,7 +4,7 @@ description: >
   Build a tokenized-agent revenue loop on a Printr POB token. Composes `printr-agent-payments` (accept user SOL/USDC for agent actions) with `printr-swap` (Jupiter buyback) and adds SPL `burn` plus a scheduled hourly cycle, all under the creator's own treasury. On Printr POB-model-1 tokens, the buyback trade itself pays the staking pool on its way to the burn — a double-effect unique to Printr's fee model. Triggers on "Printr tokenized agent", "agent revenue burn", "buyback and burn for a Printr POB token", "first tokenized agent on Printr", or when composing the `printr-swap` + `printr-agent-payments` skills into one loop.
 metadata:
   author: printr-community
-  version: "1.0"
+  version: '1.0'
 ---
 
 ## Before Starting Work
@@ -153,7 +153,7 @@ import {
   TokenAccountNotFoundError,
 } from '@solana/spl-token';
 import { Pool } from '@neondatabase/serverless';
-import { loadHotKeypair } from './printr-swap-code.js';  // from printr-swap skill
+import { loadHotKeypair } from './printr-swap-code.js'; // from printr-swap skill
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 
@@ -193,7 +193,7 @@ export async function findRecoveryCycle(
 
   return {
     id: rows[0].id as number,
-    amountToBurn: ataBalance,  // burn the actual ATA balance, not the recorded quote
+    amountToBurn: ataBalance, // burn the actual ATA balance, not the recorded quote
   };
 }
 ```
@@ -202,10 +202,15 @@ export async function findRecoveryCycle(
 
 ```typescript
 import { SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { quoteSwap, buildSwapTransaction, executeServerSwap, verifySwapOutput } from './printr-swap-code.js';
+import {
+  quoteSwap,
+  buildSwapTransaction,
+  executeServerSwap,
+  verifySwapOutput,
+} from './printr-swap-code.js';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-const FEE_RESERVE_LAMPORTS = 10_000_000n;  // 0.01 SOL held back for tx fees
+const FEE_RESERVE_LAMPORTS = 10_000_000n; // 0.01 SOL held back for tx fees
 
 export async function startCycle(
   connection: Connection,
@@ -268,15 +273,8 @@ export async function startCycle(
 SPL `burn` is instruction variant 8 of the Token program. It destroys tokens from the caller's ATA — provably irreversible. We prefer this over transferring to a null address. **[pattern]**
 
 ```typescript
-import {
-  Transaction,
-  ComputeBudgetProgram,
-} from '@solana/web3.js';
-import {
-  createBurnInstruction,
-  getAssociatedTokenAddress,
-  getMint,
-} from '@solana/spl-token';
+import { Transaction, ComputeBudgetProgram } from '@solana/web3.js';
+import { createBurnInstruction, getAssociatedTokenAddress, getMint } from '@solana/spl-token';
 
 export async function burnAgentTokens(
   connection: Connection,
@@ -291,12 +289,7 @@ export async function burnAgentTokens(
   tx.add(
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 }),
     ComputeBudgetProgram.setComputeUnitLimit({ units: 40_000 }),
-    createBurnInstruction(
-      ata,
-      mint,
-      hotKeypair.publicKey,
-      amountToBurn,
-    ),
+    createBurnInstruction(ata, mint, hotKeypair.publicKey, amountToBurn),
   );
 
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
@@ -354,7 +347,14 @@ export async function burnAgentTokens(
 export type CycleResult =
   | { action: 'noop'; reason: 'below_threshold'; hotBalance: bigint }
   | { action: 'recovered'; cycleId: number; burnSig: string; amountBurned: bigint }
-  | { action: 'completed'; cycleId: number; swapSig: string; burnSig: string; solIn: bigint; amountBurned: bigint }
+  | {
+      action: 'completed';
+      cycleId: number;
+      swapSig: string;
+      burnSig: string;
+      solIn: bigint;
+      amountBurned: bigint;
+    }
   | { action: 'failed'; stage: 'swap' | 'burn' | 'preflight'; error: string };
 
 export async function runBuybackCycle(): Promise<CycleResult> {
@@ -367,8 +367,18 @@ export async function runBuybackCycle(): Promise<CycleResult> {
     const recovery = await findRecoveryCycle(connection, hotKeypair);
     if (recovery) {
       stage = 'burn';
-      const burnSig = await burnAgentTokens(connection, hotKeypair, recovery.id, recovery.amountToBurn);
-      return { action: 'recovered', cycleId: recovery.id, burnSig, amountBurned: recovery.amountToBurn };
+      const burnSig = await burnAgentTokens(
+        connection,
+        hotKeypair,
+        recovery.id,
+        recovery.amountToBurn,
+      );
+      return {
+        action: 'recovered',
+        cycleId: recovery.id,
+        burnSig,
+        amountBurned: recovery.amountToBurn,
+      };
     }
 
     // Phase 1 — fresh cycle (quote + swap).
@@ -417,9 +427,7 @@ Endpoint handler wraps `runBuybackCycle()` and returns the `CycleResult` as JSON
 ```json
 // vercel.json
 {
-  "crons": [
-    { "path": "/api/admin/buyback", "schedule": "0 * * * *" }
-  ]
+  "crons": [{ "path": "/api/admin/buyback", "schedule": "0 * * * *" }]
 }
 ```
 
@@ -441,7 +449,7 @@ jobs:
 
 ## Paid-action gating — how to use this from your agent
 
-The tokenized-agent loop is not useful unless your agent *charges for something*. A minimal gate:
+The tokenized-agent loop is not useful unless your agent _charges for something_. A minimal gate:
 
 ```typescript
 // In your agent tool handler:
@@ -464,7 +472,7 @@ async function handleDeepAnalysisTool(sessionId: string, walletPubkey: string, .
   return {
     paid: false,
     action: 'request_payment',
-    price_smallest_unit: '50000000',   // 0.05 SOL
+    price_smallest_unit: '50000000', // 0.05 SOL
     currency: 'SOL',
     purpose: 'deep_analysis',
   };

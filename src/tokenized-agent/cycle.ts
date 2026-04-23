@@ -1,10 +1,4 @@
-import {
-  Connection,
-  Keypair,
-  PublicKey,
-  Transaction,
-  ComputeBudgetProgram,
-} from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, Transaction, ComputeBudgetProgram } from '@solana/web3.js';
 import {
   createBurnInstruction,
   getAccount,
@@ -135,8 +129,7 @@ export async function burnAgentTokens(
     createBurnInstruction(ata, cfg.agentTokenMint, cfg.hotKeypair.publicKey, amountToBurn),
   );
 
-  const { blockhash, lastValidBlockHeight } =
-    await cfg.connection.getLatestBlockhash('confirmed');
+  const { blockhash, lastValidBlockHeight } = await cfg.connection.getLatestBlockhash('confirmed');
   tx.recentBlockhash = blockhash;
   tx.feePayer = cfg.hotKeypair.publicKey;
   tx.sign(cfg.hotKeypair);

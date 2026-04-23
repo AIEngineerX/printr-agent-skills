@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/AIEngineerX/printr-agent-skills/security/advisories/new
+    about: Please report security issues privately via GitHub advisories, not as public issues.
+  - name: SECURITY.md policy
+    url: https://github.com/AIEngineerX/printr-agent-skills/blob/main/SECURITY.md
+    about: Full vulnerability reporting policy, SLAs, and known non-issues.

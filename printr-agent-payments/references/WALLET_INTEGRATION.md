@@ -11,37 +11,27 @@ npm install @solana/wallet-adapter-react @solana/wallet-adapter-react-ui @solana
 ## WalletProvider component (Next.js App Router)
 
 ```tsx
-"use client";
+'use client';
 
-import { useMemo } from "react";
+import { useMemo } from 'react';
 import {
   ConnectionProvider,
   WalletProvider as SolanaWalletProvider,
-} from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+} from '@solana/wallet-adapter-react';
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
   BackpackWalletAdapter,
-} from "@solana/wallet-adapter-wallets";
+} from '@solana/wallet-adapter-wallets';
 
-import "@solana/wallet-adapter-react-ui/styles.css";
+import '@solana/wallet-adapter-react-ui/styles.css';
 
-export default function WalletProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const endpoint =
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-    "https://api.mainnet-beta.solana.com";
+export default function WalletProvider({ children }: { children: React.ReactNode }) {
+  const endpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 
   const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-      new BackpackWalletAdapter(),
-    ],
+    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter(), new BackpackWalletAdapter()],
     [],
   );
 
@@ -58,7 +48,7 @@ export default function WalletProvider({
 ## Wrap the app layout
 
 ```tsx
-import WalletProvider from "./components/WalletProvider";
+import WalletProvider from './components/WalletProvider';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -74,12 +64,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 ## PaymentButton component — talks to `printr-agent-payments`
 
 ```tsx
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { Transaction } from "@solana/web3.js";
+import { useState } from 'react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { Transaction } from '@solana/web3.js';
 
 type CreateInvoiceResponse = {
   transaction: string;
@@ -95,8 +85,8 @@ type CreateInvoiceResponse = {
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
@@ -105,62 +95,61 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 
 export function PaymentButton(props: {
   sessionId: string;
-  currency: "SOL" | "USDC";
-  priceSmallestUnit: string;   // stringified bigint
+  currency: 'SOL' | 'USDC';
+  priceSmallestUnit: string; // stringified bigint
   purpose: string;
   onPaid: () => void;
 }) {
   const { publicKey, signTransaction, connected } = useWallet();
   const { connection } = useConnection();
-  const [state, setState] = useState<"idle" | "building" | "signing" | "submitting" | "verifying" | "done" | "error">("idle");
+  const [state, setState] = useState<
+    'idle' | 'building' | 'signing' | 'submitting' | 'verifying' | 'done' | 'error'
+  >('idle');
   const [err, setErr] = useState<string | null>(null);
 
   async function handlePay() {
     if (!connected || !publicKey || !signTransaction) {
-      setErr("connect a wallet first");
-      setState("error");
+      setErr('connect a wallet first');
+      setState('error');
       return;
     }
     setErr(null);
 
-    setState("building");
-    const { transaction, invoice } = await postJson<CreateInvoiceResponse>(
-      "/api/pay/invoice",
-      {
-        session_id: props.sessionId,
-        user_wallet: publicKey.toBase58(),
-        currency: props.currency,
-        price_smallest_unit: props.priceSmallestUnit,
-        purpose: props.purpose,
-      },
-    );
+    setState('building');
+    const { transaction, invoice } = await postJson<CreateInvoiceResponse>('/api/pay/invoice', {
+      session_id: props.sessionId,
+      user_wallet: publicKey.toBase58(),
+      currency: props.currency,
+      price_smallest_unit: props.priceSmallestUnit,
+      purpose: props.purpose,
+    });
 
-    setState("signing");
-    const tx = Transaction.from(Buffer.from(transaction, "base64"));
+    setState('signing');
+    const tx = Transaction.from(Buffer.from(transaction, 'base64'));
     const signed = await signTransaction(tx);
 
-    setState("submitting");
+    setState('submitting');
     const sig = await connection.sendRawTransaction(signed.serialize(), {
       skipPreflight: false,
-      preflightCommitment: "confirmed",
+      preflightCommitment: 'confirmed',
     });
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
     await connection.confirmTransaction(
       { signature: sig, blockhash, lastValidBlockHeight },
-      "confirmed",
+      'confirmed',
     );
 
-    setState("verifying");
-    const { paid } = await postJson<{ paid: boolean }>("/api/pay/verify", {
+    setState('verifying');
+    const { paid } = await postJson<{ paid: boolean }>('/api/pay/verify', {
       memo: invoice.memo,
     });
 
     if (paid) {
-      setState("done");
+      setState('done');
       props.onPaid();
     } else {
-      setErr("payment could not be verified on-chain");
-      setState("error");
+      setErr('payment could not be verified on-chain');
+      setState('error');
     }
   }
 
@@ -168,14 +157,17 @@ export function PaymentButton(props: {
     <div>
       <WalletMultiButton />
       {connected && publicKey && (
-        <button onClick={handlePay} disabled={state !== "idle" && state !== "error" && state !== "done"}>
-          {state === "idle" && `Pay ${formatPrice(props.priceSmallestUnit, props.currency)}`}
-          {state === "building" && "Preparing…"}
-          {state === "signing" && "Approve in wallet…"}
-          {state === "submitting" && "Submitting…"}
-          {state === "verifying" && "Verifying…"}
-          {state === "done" && "Paid"}
-          {state === "error" && "Retry"}
+        <button
+          onClick={handlePay}
+          disabled={state !== 'idle' && state !== 'error' && state !== 'done'}
+        >
+          {state === 'idle' && `Pay ${formatPrice(props.priceSmallestUnit, props.currency)}`}
+          {state === 'building' && 'Preparing…'}
+          {state === 'signing' && 'Approve in wallet…'}
+          {state === 'submitting' && 'Submitting…'}
+          {state === 'verifying' && 'Verifying…'}
+          {state === 'done' && 'Paid'}
+          {state === 'error' && 'Retry'}
         </button>
       )}
       {err && <p role="alert">{err}</p>}
@@ -183,9 +175,9 @@ export function PaymentButton(props: {
   );
 }
 
-function formatPrice(smallestUnit: string, currency: "SOL" | "USDC"): string {
+function formatPrice(smallestUnit: string, currency: 'SOL' | 'USDC'): string {
   const n = BigInt(smallestUnit);
-  if (currency === "SOL") {
+  if (currency === 'SOL') {
     const sol = Number(n) / 1e9;
     return `${sol.toFixed(3)} SOL`;
   }

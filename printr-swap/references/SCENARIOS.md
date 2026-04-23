@@ -51,13 +51,13 @@ Five scenarios. Run each against a **small** amount (0.001 SOL) first to exercis
 
 ## Troubleshooting
 
-| Error | Cause | Fix |
-| --- | --- | --- |
-| `Jupiter quote failed: 429 Too Many Requests` | Free lite-api hit rate limit | Add backoff (30s); for production traffic, upgrade to paid `api.jup.ag` with `x-api-key` header |
-| `No route available for ... -> ...` | Token un-indexed or all pools drained | Wait 1–5 min for Jupiter indexer; if persistent, check DexScreener for pool existence |
-| `Jupiter returned wrong output mint` | Someone tampered with the quote response, or you passed the wrong mint | Re-check the `outputMint` param; NEVER submit a swap tx whose output mint differs from your target |
-| `swap output below minimum` | Pool moved between quote and fill | Expected under volatility; record actual received amount and proceed with reduced output |
-| `swap failed on-chain: InsufficientFunds` | Hot wallet drained below cycle size | Sweep from cold; or cap `BUYBACK_MAX_LAMPORTS` lower |
-| `signature not confirmed within ... blocks` | `lastValidBlockHeight` expired | Re-build + re-submit; Jupiter's swap-build TTL is ~60–150 slots |
-| `TREASURY_HOT_PRIVATE_KEY not set` | Running server-signed path without env var | Either supply the key or use the user-signed path |
-| `expected 64-byte secret, got 32` | Key stored as seed, not full secret | bs58-decode full keypair export from Solana CLI: `solana-keygen pubkey --outfile /tmp/key.json; cat key.json` returns an array — convert to base58 before putting in env |
+| Error                                         | Cause                                                                  | Fix                                                                                                                                                                      |
+| --------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Jupiter quote failed: 429 Too Many Requests` | Free lite-api hit rate limit                                           | Add backoff (30s); for production traffic, upgrade to paid `api.jup.ag` with `x-api-key` header                                                                          |
+| `No route available for ... -> ...`           | Token un-indexed or all pools drained                                  | Wait 1–5 min for Jupiter indexer; if persistent, check DexScreener for pool existence                                                                                    |
+| `Jupiter returned wrong output mint`          | Someone tampered with the quote response, or you passed the wrong mint | Re-check the `outputMint` param; NEVER submit a swap tx whose output mint differs from your target                                                                       |
+| `swap output below minimum`                   | Pool moved between quote and fill                                      | Expected under volatility; record actual received amount and proceed with reduced output                                                                                 |
+| `swap failed on-chain: InsufficientFunds`     | Hot wallet drained below cycle size                                    | Sweep from cold; or cap `BUYBACK_MAX_LAMPORTS` lower                                                                                                                     |
+| `signature not confirmed within ... blocks`   | `lastValidBlockHeight` expired                                         | Re-build + re-submit; Jupiter's swap-build TTL is ~60–150 slots                                                                                                          |
+| `TREASURY_HOT_PRIVATE_KEY not set`            | Running server-signed path without env var                             | Either supply the key or use the user-signed path                                                                                                                        |
+| `expected 64-byte secret, got 32`             | Key stored as seed, not full secret                                    | bs58-decode full keypair export from Solana CLI: `solana-keygen pubkey --outfile /tmp/key.json; cat key.json` returns an array — convert to base58 before putting in env |

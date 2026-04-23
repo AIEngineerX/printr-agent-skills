@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a new skill, primitive, or capability
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem would this solve? Concrete adopter use case preferred over abstract wishlist items.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What would the solution look like? API sketch, skill name, composition.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - New standalone skill
+        - Addition to existing skill
+        - New src/ primitive
+        - Documentation or example
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you consider? Why did you pick this one?
+
+  - type: checkboxes
+    id: willing-to-contribute
+    attributes:
+      label: Willing to contribute?
+      options:
+        - label: I am willing to open a PR for this

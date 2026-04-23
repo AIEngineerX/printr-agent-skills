@@ -88,7 +88,7 @@ Blast radius = worst-case SOL lost given a single compromise event. A compromise
 
 **Setup**
 
-- **Cold** = Squads V4 Multisig (2-of-2, 2-of-3, or 3-of-5 depending on your team). Same Squads platform, but *multiple* signers required for any outgoing tx.
+- **Cold** = Squads V4 Multisig (2-of-2, 2-of-3, or 3-of-5 depending on your team). Same Squads platform, but _multiple_ signers required for any outgoing tx.
   - `TREASURY_COLD_PUBKEY` = multisig vault address.
 - **Hot** = same as Pattern 3.
 - **Sweep** = requires quorum approval. Slower.
@@ -112,12 +112,12 @@ Blast radius = worst-case SOL lost given a single compromise event. A compromise
 
 ## Comparison table
 
-| Pattern | Cold mechanism | Blast radius | Setup time | Sweep cadence | Recommended for |
-|---|---|---|---|---|---|
-| 1. Single hot | None | Entire treasury | 0 min | N/A | Prototype only |
-| 2. Role separation | Second env-var wallet | Both wallets combined | 30 min | Scripted, automatic | Small prod; not real multisig |
-| 3. Squads Pro | On-chain smart wallet with recovery | Hot cap only | 10 min | Manual, weekly | **Default — solo operator** |
-| 4. Squads V4 multisig | On-chain M-of-N multisig | Hot cap only | 30 min | Manual, quorum | Teams; large treasuries |
+| Pattern               | Cold mechanism                      | Blast radius          | Setup time | Sweep cadence       | Recommended for               |
+| --------------------- | ----------------------------------- | --------------------- | ---------- | ------------------- | ----------------------------- |
+| 1. Single hot         | None                                | Entire treasury       | 0 min      | N/A                 | Prototype only                |
+| 2. Role separation    | Second env-var wallet               | Both wallets combined | 30 min     | Scripted, automatic | Small prod; not real multisig |
+| 3. Squads Pro         | On-chain smart wallet with recovery | Hot cap only          | 10 min     | Manual, weekly      | **Default — solo operator**   |
+| 4. Squads V4 multisig | On-chain M-of-N multisig            | Hot cap only          | 30 min     | Manual, quorum      | Teams; large treasuries       |
 
 ## The choice is not permanent
 

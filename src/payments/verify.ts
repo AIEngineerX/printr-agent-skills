@@ -19,7 +19,10 @@ export const CLOCK_SKEW_SECONDS = 60;
 export const SIGNATURE_PAGE_SIZE = 200;
 
 export interface QueryablePool {
-  query(text: string, params?: readonly unknown[]): Promise<{ rows: any[]; rowCount?: number | null }>;
+  query(
+    text: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: any[]; rowCount?: number | null }>;
 }
 
 export interface InvoiceRow {
@@ -93,10 +96,9 @@ export async function verifyInvoiceOnChain(
     return { paid: false, reason: 'expired' };
   }
 
-  const sigs = await ctx.connection.getSignaturesForAddress(
-    ctx.treasuryPubkey,
-    { limit: SIGNATURE_PAGE_SIZE },
-  );
+  const sigs = await ctx.connection.getSignaturesForAddress(ctx.treasuryPubkey, {
+    limit: SIGNATURE_PAGE_SIZE,
+  });
 
   const windowStart = Number(inv.start_time) - CLOCK_SKEW_SECONDS;
   const windowEnd = endTime + GRACE_PAST_END_SECONDS;
@@ -126,8 +128,12 @@ export async function verifyInvoiceOnChain(
     if (!ixs.some((ix) => instructionIsMemo(ix, expectedMemo))) continue;
 
     const payMatch = isSol
-      ? ixs.some((ix) => instructionIsSolTransfer(ix, userPubkey, ctx.treasuryPubkey, expectedAmount))
-      : ixs.some((ix) => instructionIsUsdcTransfer(ix, userPubkey, expectedTreasuryAta!, expectedAmount));
+      ? ixs.some((ix) =>
+          instructionIsSolTransfer(ix, userPubkey, ctx.treasuryPubkey, expectedAmount),
+        )
+      : ixs.some((ix) =>
+          instructionIsUsdcTransfer(ix, userPubkey, expectedTreasuryAta!, expectedAmount),
+        );
     if (!payMatch) continue;
 
     return { paid: true, tx_sig: candidates[i].signature, blockTime: tx.blockTime ?? 0 };
@@ -197,7 +203,9 @@ export function instructionIsUsdcTransfer(
 
   const amt = info.tokenAmount
     ? BigInt(info.tokenAmount.amount)
-    : info.amount ? BigInt(info.amount) : -1n;
+    : info.amount
+      ? BigInt(info.amount)
+      : -1n;
   return amt === amount;
 }
 

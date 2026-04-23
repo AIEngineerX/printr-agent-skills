@@ -1,6 +1,9 @@
 # printr-agent-skills
 
 [![test](https://github.com/AIEngineerX/printr-agent-skills/actions/workflows/test.yml/badge.svg)](https://github.com/AIEngineerX/printr-agent-skills/actions/workflows/test.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](./.nvmrc)
+[![release](https://img.shields.io/github/v/release/AIEngineerX/printr-agent-skills?sort=semver)](https://github.com/AIEngineerX/printr-agent-skills/releases)
 
 Agent Skills for building **tokenized-agent revenue loops** on [Printr](https://printr.money) — the omnichain Proof-of-Belief (POB) token launchpad.
 
@@ -18,11 +21,11 @@ Printr POB tokens live on Meteora DBC (bonding curve) and migrate to Meteora DAM
 
 ## Available Skills
 
-| Skill | Purpose |
-|-------|---------|
-| [`printr-swap`](./printr-swap/SKILL.md) | Buy or sell a Printr POB token via Jupiter. Handles user-signed (wallet adapter) and server-signed (automated buyback) flows. Auto-detects bonding-curve vs graduated pool state, applies slippage protection, verifies ATA balance post-swap. |
-| [`printr-agent-payments`](./printr-agent-payments/SKILL.md) | Accept SOL or USDC for paid agent actions. Generates unique memos, builds transfer txs for client signing, verifies invoices on-chain by scanning treasury signatures. UNIQUE-memo DB constraint prevents replay. |
-| [`printr-tokenized-agent`](./printr-tokenized-agent/SKILL.md) | Composes the two above. Hourly cron reads hot-wallet balance, quotes SOL→token on Jupiter, swaps, and burns via SPL `burn` instruction. Recovery mode handles swap-succeeds-burn-fails. Custody-agnostic — pick one of four patterns. |
+| Skill                                                         | Purpose                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`printr-swap`](./printr-swap/SKILL.md)                       | Buy or sell a Printr POB token via Jupiter. Handles user-signed (wallet adapter) and server-signed (automated buyback) flows. Auto-detects bonding-curve vs graduated pool state, applies slippage protection, verifies ATA balance post-swap. |
+| [`printr-agent-payments`](./printr-agent-payments/SKILL.md)   | Accept SOL or USDC for paid agent actions. Generates unique memos, builds transfer txs for client signing, verifies invoices on-chain by scanning treasury signatures. UNIQUE-memo DB constraint prevents replay.                              |
+| [`printr-tokenized-agent`](./printr-tokenized-agent/SKILL.md) | Composes the two above. Hourly cron reads hot-wallet balance, quotes SOL→token on Jupiter, swaps, and burns via SPL `burn` instruction. Recovery mode handles swap-succeeds-burn-fails. Custody-agnostic — pick one of four patterns.          |
 
 ## Composition
 
@@ -89,19 +92,22 @@ Restart your agent. The three skills will auto-trigger when you describe a match
 Each skill's `description` field in its YAML frontmatter defines what triggers it. Known-good prompts:
 
 **`printr-swap`**
-- *"Quote a swap from SOL to `<MINT>` via Jupiter, then execute it from my treasury wallet"*
-- *"Buy 0.1 SOL worth of `<MINT>` for me, signed with my Phantom wallet"*
-- *"Is this token pre-graduation or graduated? Check via Jupiter route."*
+
+- _"Quote a swap from SOL to `<MINT>` via Jupiter, then execute it from my treasury wallet"_
+- _"Buy 0.1 SOL worth of `<MINT>` for me, signed with my Phantom wallet"_
+- _"Is this token pre-graduation or graduated? Check via Jupiter route."_
 
 **`printr-agent-payments`**
-- *"Build a paywall where users pay 0.1 SOL to unlock a paid action"*
-- *"Add a paid-action gate to my agent — charge 0.05 SOL per deep-analysis call"*
-- *"Verify if invoice `<MEMO>` was paid on-chain"*
+
+- _"Build a paywall where users pay 0.1 SOL to unlock a paid action"_
+- _"Add a paid-action gate to my agent — charge 0.05 SOL per deep-analysis call"_
+- _"Verify if invoice `<MEMO>` was paid on-chain"_
 
 **`printr-tokenized-agent`**
-- *"Set up a buyback-and-burn loop for my Printr POB token `<MINT>`"*
-- *"Build a tokenized agent on Printr, using $INKED as the reference"*
-- *"Compose `printr-swap` + `printr-agent-payments` into a full revenue loop"*
+
+- _"Set up a buyback-and-burn loop for my Printr POB token `<MINT>`"_
+- _"Build a tokenized agent on Printr, using $INKED as the reference"_
+- _"Compose `printr-swap` + `printr-agent-payments` into a full revenue loop"_
 
 ## Skill Structure
 
@@ -143,11 +149,11 @@ printr-agent-skills/
 
 Every non-obvious claim in each `SKILL.md` carries a provenance marker so you can tell what's authoritative vs. interpreted:
 
-| Tag | Meaning |
-|---|---|
-| `[Printr]` | Verifiable against [printr.gitbook.io/printr-docs](https://printr.gitbook.io/printr-docs) or `api-preview.printr.money` |
-| `[pattern]` | Standard Solana / SPL / Jupiter / Web3.js convention, not platform-specific |
-| `[derived]` | Author's judgment. Most likely to need revision as the ecosystem evolves |
+| Tag         | Meaning                                                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `[Printr]`  | Verifiable against [printr.gitbook.io/printr-docs](https://printr.gitbook.io/printr-docs) or `api-preview.printr.money` |
+| `[pattern]` | Standard Solana / SPL / Jupiter / Web3.js convention, not platform-specific                                             |
+| `[derived]` | Author's judgment. Most likely to need revision as the ecosystem evolves                                                |
 
 Grep for `[derived]` in any SKILL.md to see exactly what's my call vs. what's upstream-grounded fact.
 
@@ -155,8 +161,8 @@ Grep for `[derived]` in any SKILL.md to see exactly what's my call vs. what's up
 
 [`github.com/AIEngineerX/inked`](https://github.com/AIEngineerX/inked) — **$INKED**, intended as the first production consumer. **Not yet running a live cycle** — the kit's code is test-covered (68 unit + integration tests across the three skills, live-validated against Jupiter + $INKED) but no buyback has been executed in production yet. This section will be updated with "live since" and cycle stats when $INKED's integration lands.
 
-| Project | Token | Status | Notes |
-|---|---|---|---|
+| Project                       | Token                                          | Status                           | Notes                                 |
+| ----------------------------- | ---------------------------------------------- | -------------------------------- | ------------------------------------- |
 | [$INKED](https://inked.money) | `2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr` | Pre-launch (integration pending) | POB model #1 reference implementation |
 
 Adopters: PR yourself into this table **after** you've run at least one production buyback cycle — please link to a burn tx on Solscan as evidence.
@@ -165,12 +171,12 @@ Adopters: PR yourself into this table **after** you've run at least one producti
 
 Compatibility assessed by inspection of each host's documented runtime + the skill's dependency profile. **None of these hosts have been end-to-end verified with a live cycle yet** — if you're the first to deploy on one of them, please share feedback via a GitHub issue.
 
-| Host | Compatibility | Notes |
-|---|---|---|
-| Netlify (SvelteKit + Scheduled Functions) | Expected to work — not yet verified live | `netlify.toml` cron pattern; scheduled functions run in Node runtime |
-| Vercel (Next.js + Cron) | Expected to work — not yet verified live | `vercel.json` crons; validate `CRON_SECRET` header |
-| Cloudflare Workers | Partial — buyback cron requires Node-compat mode | `@solana/web3.js` uses Node APIs; Edge routes for invoice accept/verify are Workers-native |
-| Railway / Fly / generic Node | Expected to work — standard Node runtime | |
+| Host                                      | Compatibility                                    | Notes                                                                                      |
+| ----------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Netlify (SvelteKit + Scheduled Functions) | Expected to work — not yet verified live         | `netlify.toml` cron pattern; scheduled functions run in Node runtime                       |
+| Vercel (Next.js + Cron)                   | Expected to work — not yet verified live         | `vercel.json` crons; validate `CRON_SECRET` header                                         |
+| Cloudflare Workers                        | Partial — buyback cron requires Node-compat mode | `@solana/web3.js` uses Node APIs; Edge routes for invoice accept/verify are Workers-native |
+| Railway / Fly / generic Node              | Expected to work — standard Node runtime         |                                                                                            |
 
 ## Runtime requirements
 

@@ -1,4 +1,3 @@
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
@@ -69,12 +68,20 @@ describe('instructionIsSolTransfer', () => {
   });
 
   it('rejects wrong source', () => {
-    const ix = fakeSolTransferIx(Keypair.generate().publicKey.toBase58(), to.toBase58(), 1_000_000n);
+    const ix = fakeSolTransferIx(
+      Keypair.generate().publicKey.toBase58(),
+      to.toBase58(),
+      1_000_000n,
+    );
     expect(instructionIsSolTransfer(ix, from, to, 1_000_000n)).toBe(false);
   });
 
   it('rejects wrong destination', () => {
-    const ix = fakeSolTransferIx(from.toBase58(), Keypair.generate().publicKey.toBase58(), 1_000_000n);
+    const ix = fakeSolTransferIx(
+      from.toBase58(),
+      Keypair.generate().publicKey.toBase58(),
+      1_000_000n,
+    );
     expect(instructionIsSolTransfer(ix, from, to, 1_000_000n)).toBe(false);
   });
 
@@ -127,7 +134,14 @@ describe('instructionIsUsdcTransfer', () => {
 
   it('rejects wrong mint on transferChecked', () => {
     const otherMint = 'OtherMint4444444444444444444444444444444444';
-    const ix = fakeUsdcTransferCheckedIx(userAta, treasuryAta, user.toBase58(), 1_000_000n, 6, otherMint);
+    const ix = fakeUsdcTransferCheckedIx(
+      userAta,
+      treasuryAta,
+      user.toBase58(),
+      1_000_000n,
+      6,
+      otherMint,
+    );
     expect(instructionIsUsdcTransfer(ix, user, treasuryAta, 1_000_000n)).toBe(false);
   });
 
@@ -180,16 +194,18 @@ describe('verifyInvoiceOnChain — flow', () => {
     db = createTestDb();
   });
 
-  async function insertInvoice(overrides: Partial<{
-    memo: bigint;
-    user_wallet: string;
-    currency_mint: string;
-    amount: bigint;
-    start: number;
-    end: number;
-    status: string;
-    tx_sig: string | null;
-  }> = {}) {
+  async function insertInvoice(
+    overrides: Partial<{
+      memo: bigint;
+      user_wallet: string;
+      currency_mint: string;
+      amount: bigint;
+      start: number;
+      end: number;
+      status: string;
+      tx_sig: string | null;
+    }> = {},
+  ) {
     const now = Math.floor(Date.now() / 1000);
     const row = {
       memo: 7777n,
@@ -285,11 +301,7 @@ describe('verifyInvoiceOnChain — flow', () => {
 
     const matchingTx = fakeTx(now - 10, [
       fakeMemoIxParsed('5555'),
-      fakeSolTransferIx(
-        payer.publicKey.toBase58(),
-        treasury.publicKey.toBase58(),
-        row.amount,
-      ),
+      fakeSolTransferIx(payer.publicKey.toBase58(), treasury.publicKey.toBase58(), row.amount),
     ]);
 
     const { conn } = createMockConnection({
@@ -439,14 +451,7 @@ describe('verifyInvoiceWithRetries — DB idempotency', () => {
       `INSERT INTO payment_invoice (memo, session_id, user_wallet, currency_mint,
          amount_smallest_unit, start_time, end_time, status)
        VALUES ($1, 'test', $2, $3, $4, $5, $6, 'pending')`,
-      [
-        '7700',
-        payer.publicKey.toBase58(),
-        WSOL_MINT,
-        amount.toString(),
-        now - 60,
-        now + 3600,
-      ],
+      ['7700', payer.publicKey.toBase58(), WSOL_MINT, amount.toString(), now - 60, now + 3600],
     );
 
     const sig = 'IdempotentSig';
@@ -469,7 +474,10 @@ describe('verifyInvoiceWithRetries — DB idempotency', () => {
     expect(ok).toBe(true);
 
     // Row is now paid with the tx_sig recorded.
-    const { rows } = await db.pool.query(`SELECT status, tx_sig FROM payment_invoice WHERE memo=$1`, ['7700']);
+    const { rows } = await db.pool.query(
+      `SELECT status, tx_sig FROM payment_invoice WHERE memo=$1`,
+      ['7700'],
+    );
     expect(rows[0].status).toBe('paid');
     expect(rows[0].tx_sig).toBe(sig);
   });
@@ -482,14 +490,7 @@ describe('verifyInvoiceWithRetries — DB idempotency', () => {
       `INSERT INTO payment_invoice (memo, session_id, user_wallet, currency_mint,
          amount_smallest_unit, start_time, end_time, status, tx_sig, paid_at)
        VALUES ($1, 'test', $2, $3, $4, $5, $6, 'paid', 'FirstSig', now())`,
-      [
-        '7800',
-        payer.publicKey.toBase58(),
-        WSOL_MINT,
-        amount.toString(),
-        now - 60,
-        now + 3600,
-      ],
+      ['7800', payer.publicKey.toBase58(), WSOL_MINT, amount.toString(), now - 60, now + 3600],
     );
 
     const { conn } = createMockConnection();

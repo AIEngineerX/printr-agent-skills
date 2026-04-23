@@ -43,18 +43,18 @@ This creates a private advisory visible only to maintainers and you. GitHub trac
 
 ## Response timeline
 
-| Stage | SLA |
-|---|---|
-| Initial acknowledgment | Within 72 hours |
-| Triage decision (in-scope / out-of-scope / needs-info) | Within 1 week |
-| Fix or coordinated disclosure plan | Within 2 weeks for confirmed issues |
+| Stage                                                  | SLA                                 |
+| ------------------------------------------------------ | ----------------------------------- |
+| Initial acknowledgment                                 | Within 72 hours                     |
+| Triage decision (in-scope / out-of-scope / needs-info) | Within 1 week                       |
+| Fix or coordinated disclosure plan                     | Within 2 weeks for confirmed issues |
 
 This is a solo-operator project. SLAs are best-effort — if a response is overdue, a polite nudge on the same channel is welcome.
 
 ## Supported versions
 
-| Version | Status |
-|---|---|
+| Version                       | Status    |
+| ----------------------------- | --------- |
 | `1.0` (current `main` branch) | Supported |
 
 There are no long-term support branches. Always pull from `main` for the latest safety rules and patches.
@@ -105,12 +105,12 @@ We do not currently run a paid bug bounty. If the kit sees substantial adoption 
 
 If a confirmed issue traces to an upstream dependency, we follow coordinated-disclosure norms:
 
-| Upstream | Contact |
-|---|---|
-| **Printr** (protocol) | `@VikrewW` on Telegram |
-| **Jupiter** (swap API) | `station.jup.ag` support / their Discord |
-| **Meteora** (pools) | `app.meteora.ag` / their Discord |
-| **Solana Labs** (web3.js, spl-token) | GitHub issue on the relevant repo |
+| Upstream                             | Contact                                  |
+| ------------------------------------ | ---------------------------------------- |
+| **Printr** (protocol)                | `@VikrewW` on Telegram                   |
+| **Jupiter** (swap API)               | `station.jup.ag` support / their Discord |
+| **Meteora** (pools)                  | `app.meteora.ag` / their Discord         |
+| **Solana Labs** (web3.js, spl-token) | GitHub issue on the relevant repo        |
 
 This repo will **not** publicly disclose unpatched upstream issues before those teams have had reasonable time to patch.
 

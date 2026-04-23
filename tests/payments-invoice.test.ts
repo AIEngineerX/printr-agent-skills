@@ -1,4 +1,3 @@
-
 import { describe, it, expect } from 'vitest';
 import { Keypair, Transaction, PublicKey } from '@solana/web3.js';
 import {
@@ -32,12 +31,12 @@ describe('generateInvoiceParams — validation', () => {
   });
 
   it('rejects price_smallest_unit <= 0', () => {
-    expect(() =>
-      generateInvoiceParams({ currency: 'SOL', price_smallest_unit: 0n }),
-    ).toThrow(/price_smallest_unit must be > 0/);
-    expect(() =>
-      generateInvoiceParams({ currency: 'SOL', price_smallest_unit: -1n }),
-    ).toThrow(/price_smallest_unit must be > 0/);
+    expect(() => generateInvoiceParams({ currency: 'SOL', price_smallest_unit: 0n })).toThrow(
+      /price_smallest_unit must be > 0/,
+    );
+    expect(() => generateInvoiceParams({ currency: 'SOL', price_smallest_unit: -1n })).toThrow(
+      /price_smallest_unit must be > 0/,
+    );
   });
 
   it('rejects durationSeconds <= 0', () => {

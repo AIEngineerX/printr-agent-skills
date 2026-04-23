@@ -11,11 +11,7 @@ import { createMockConnection } from './fixtures/mock-rpc.js';
 
 const AGENT_MINT = new PublicKey(Keypair.generate().publicKey);
 
-function makeConfig(
-  pool: any,
-  conn: any,
-  overrides: Partial<CycleConfig> = {},
-): CycleConfig {
+function makeConfig(pool: any, conn: any, overrides: Partial<CycleConfig> = {}): CycleConfig {
   return {
     pool,
     connection: conn,
@@ -30,7 +26,9 @@ function makeConfig(
 
 describe('startCycle — threshold gating', () => {
   let db: TestDb;
-  beforeEach(() => { db = createTestDb(); });
+  beforeEach(() => {
+    db = createTestDb();
+  });
 
   it('returns noop when balance is exactly 0', async () => {
     const { conn } = createMockConnection();
@@ -74,13 +72,17 @@ describe('findRecoveryCycle', () => {
 
 describe('runBuybackCycle — failure-path propagation', () => {
   let db: TestDb;
-  beforeEach(() => { db = createTestDb(); });
+  beforeEach(() => {
+    db = createTestDb();
+  });
 
   it('catches preflight errors as { stage: preflight }', async () => {
     const { conn: baseConn } = createMockConnection();
     const conn = {
       ...baseConn,
-      async getAccountInfo() { throw new Error('preflight RPC down'); },
+      async getAccountInfo() {
+        throw new Error('preflight RPC down');
+      },
     };
     const r = await runBuybackCycle(makeConfig(db.pool, conn));
     expect(r.action).toBe('failed');
@@ -94,7 +96,9 @@ describe('runBuybackCycle — failure-path propagation', () => {
     const { conn: baseConn } = createMockConnection({ accountInfos: new Map() });
     const conn = {
       ...baseConn,
-      async getBalance() { throw new Error('RPC timeout during swap phase'); },
+      async getBalance() {
+        throw new Error('RPC timeout during swap phase');
+      },
     };
     const r = await runBuybackCycle(makeConfig(db.pool, conn));
     expect(r.action).toBe('failed');

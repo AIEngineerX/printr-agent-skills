@@ -7,9 +7,9 @@ import {
 } from '@solana/web3.js';
 import bs58 from 'bs58';
 
-const MEMO_PROGRAM_ID   = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
-const TOKEN_PROGRAM_ID  = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 
 export interface MockRpcOptions {
   latestBlockhash?: { blockhash: string; lastValidBlockHeight: number };
@@ -25,12 +25,14 @@ export function createMockConnection(opts: MockRpcOptions = {}) {
 
   const conn = {
     async getLatestBlockhash(_commitment?: string) {
-      return opts.latestBlockhash ?? {
-        // 32-byte valid base58 (all-1s = null pubkey). Real base58 is required
-        // because Transaction.serialize() decodes this string.
-        blockhash: '11111111111111111111111111111111',
-        lastValidBlockHeight: 1_000_000,
-      };
+      return (
+        opts.latestBlockhash ?? {
+          // 32-byte valid base58 (all-1s = null pubkey). Real base58 is required
+          // because Transaction.serialize() decodes this string.
+          blockhash: '11111111111111111111111111111111',
+          lastValidBlockHeight: 1_000_000,
+        }
+      );
     },
     async getBalance(pubkey: PublicKey): Promise<number> {
       return opts.balances?.get(pubkey.toBase58()) ?? 0;
@@ -48,8 +50,12 @@ export function createMockConnection(opts: MockRpcOptions = {}) {
     async getParsedTransactions(signatures: string[]) {
       return signatures.map((sig) => opts.transactions?.get(sig) ?? null);
     },
-    async sendRawTransaction(_raw: Uint8Array) { return 'MockTxSignature'; },
-    async confirmTransaction() { return { value: { err: null } }; },
+    async sendRawTransaction(_raw: Uint8Array) {
+      return 'MockTxSignature';
+    },
+    async confirmTransaction() {
+      return { value: { err: null } };
+    },
     async getAccountInfo(pubkey: PublicKey) {
       return opts.accountInfos?.get(pubkey.toBase58()) ?? null;
     },
@@ -76,11 +82,7 @@ export function fakeMemoIxRaw(memoString: string): PartiallyDecodedInstruction {
   } as unknown as PartiallyDecodedInstruction;
 }
 
-export function fakeSolTransferIx(
-  from: string,
-  to: string,
-  lamports: bigint,
-): ParsedInstruction {
+export function fakeSolTransferIx(from: string, to: string, lamports: bigint): ParsedInstruction {
   return {
     programId: new PublicKey(SYSTEM_PROGRAM_ID),
     program: 'system',

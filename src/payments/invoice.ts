@@ -103,34 +103,36 @@ export async function buildPaymentTransaction(
 
   // web3.js ^1.98 accepts bigint for lamports and SPL amounts directly.
   if (currency === 'SOL') {
-    tx.add(SystemProgram.transfer({
-      fromPubkey: user,
-      toPubkey: treasury,
-      lamports: params.amount_smallest_unit,
-    }));
+    tx.add(
+      SystemProgram.transfer({
+        fromPubkey: user,
+        toPubkey: treasury,
+        lamports: params.amount_smallest_unit,
+      }),
+    );
   } else {
     // Caller must ensure treasury's USDC ATA exists — prepend
     // createAssociatedTokenAccountIdempotentInstruction if unsure.
     const currencyMint = new PublicKey(params.currency_mint);
     const sourceAta = await getAssociatedTokenAddress(currencyMint, user);
-    const destAta   = await getAssociatedTokenAddress(currencyMint, treasury);
-    tx.add(createTransferCheckedInstruction(
-      sourceAta,
-      currencyMint,
-      destAta,
-      user,
-      params.amount_smallest_unit,
-      DECIMALS[currency],
-      [],
-      SPL_TOKEN_PROGRAM_ID,
-    ));
+    const destAta = await getAssociatedTokenAddress(currencyMint, treasury);
+    tx.add(
+      createTransferCheckedInstruction(
+        sourceAta,
+        currencyMint,
+        destAta,
+        user,
+        params.amount_smallest_unit,
+        DECIMALS[currency],
+        [],
+        SPL_TOKEN_PROGRAM_ID,
+      ),
+    );
   }
 
   const { blockhash } = await connection.getLatestBlockhash('confirmed');
   tx.recentBlockhash = blockhash;
   tx.feePayer = user;
 
-  return tx
-    .serialize({ requireAllSignatures: false, verifySignatures: false })
-    .toString('base64');
+  return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
 }

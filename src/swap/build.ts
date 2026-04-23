@@ -5,7 +5,7 @@ export interface BuildSwapParams {
   quote: JupiterQuote;
   userPublicKey: PublicKey;
   wrapAndUnwrapSol?: boolean; // default true — auto-handles wSOL
-  priorityFee?: PriorityFee;  // default 'auto' — Jupiter picks based on congestion
+  priorityFee?: PriorityFee; // default 'auto' — Jupiter picks based on congestion
 }
 
 export async function buildSwapTransaction(
@@ -36,8 +36,6 @@ export async function buildSwapTransaction(
     lastValidBlockHeight: number;
   };
 
-  const tx = VersionedTransaction.deserialize(
-    Buffer.from(swapTransaction, 'base64'),
-  );
+  const tx = VersionedTransaction.deserialize(Buffer.from(swapTransaction, 'base64'));
   return { tx, lastValidBlockHeight };
 }

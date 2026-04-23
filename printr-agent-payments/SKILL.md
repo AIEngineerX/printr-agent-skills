@@ -4,7 +4,7 @@ description: >
   Use when building a Solana paywall — charging users for agent actions with on-chain memo-match invoice verification. Generates cryptographically-random memos, builds SOL or USDC transfer transactions for client signing, and verifies payments on-chain by scanning the treasury wallet's signature history. Platform-agnostic — works for any Solana SPL mint and any Solana wallet adapter. Pairs with `printr-swap` and `printr-tokenized-agent` for a full agent-revenue + buyback-and-burn loop on Printr POB tokens.
 metadata:
   author: printr-community
-  version: "1.0"
+  version: '1.0'
 ---
 
 ## Before Starting Work
@@ -36,12 +36,12 @@ Rules 1–6 are standard Solana / payment-skill practice **[pattern]**. Rule 7 i
 
 ## Supported Currencies
 
-| Currency    | Decimals | Smallest unit example | Mint address |
-| ----------- | -------- | --------------------- | --- |
+| Currency    | Decimals | Smallest unit example | Mint address                                   |
+| ----------- | -------- | --------------------- | ---------------------------------------------- |
 | USDC        | 6        | `1000000` = 1 USDC    | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
-| Wrapped SOL | 9        | `1000000000` = 1 SOL  | `So11111111111111111111111111111111111111112` |
+| Wrapped SOL | 9        | `1000000000` = 1 SOL  | `So11111111111111111111111111111111111111112`  |
 
-**SOL vs Wrapped SOL:** The skill builds *native SOL* transfers via `SystemProgram.transfer` when `CURRENCY_MINT = wSOL`. No wrapping is needed — we take lamports directly. The `wSOL` mint is recorded in the invoice as a consistent currency identifier (so the invoice schema stays uniform across SOL and SPL currencies). **[derived]**
+**SOL vs Wrapped SOL:** The skill builds _native SOL_ transfers via `SystemProgram.transfer` when `CURRENCY_MINT = wSOL`. No wrapping is needed — we take lamports directly. The `wSOL` mint is recorded in the invoice as a consistent currency identifier (so the invoice schema stays uniform across SOL and SPL currencies). **[derived]**
 
 ## Environment Variables
 
@@ -166,13 +166,13 @@ export interface CreateInvoiceParams {
   currency: Currency;
   price_smallest_unit: bigint;
   purpose?: string;
-  durationSeconds?: number;  // default 86400
+  durationSeconds?: number; // default 86400
 }
 
 export interface CreateInvoiceResult {
-  transaction: string;       // base64-encoded unsigned Transaction
+  transaction: string; // base64-encoded unsigned Transaction
   invoice: {
-    memo: string;            // stringified bigint (JSON-safe)
+    memo: string; // stringified bigint (JSON-safe)
     user_wallet: string;
     currency_mint: string;
     amount_smallest_unit: string;
@@ -189,7 +189,7 @@ export interface CreateInvoiceResult {
 ```typescript
 import crypto from 'node:crypto';
 
-const SOL_MINT  = 'So11111111111111111111111111111111111111112';
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 const SUPPORTED_MINTS = { SOL: SOL_MINT, USDC: USDC_MINT } as const;
@@ -262,7 +262,7 @@ function mintToCurrency(mint: string): Currency | null {
 }
 
 export async function buildPaymentTransaction(
-  connection: Connection,   // injected — makes this testable against a mock RPC
+  connection: Connection, // injected — makes this testable against a mock RPC
   params: {
     userWallet: string;
     treasuryReceiver: string;
@@ -315,7 +315,7 @@ export async function buildPaymentTransaction(
     // if not already guaranteed.
     const currencyMint = new PublicKey(params.currency_mint);
     const sourceAta = await getAssociatedTokenAddress(currencyMint, user);
-    const destAta   = await getAssociatedTokenAddress(currencyMint, treasury);
+    const destAta = await getAssociatedTokenAddress(currencyMint, treasury);
     tx.add(
       createTransferCheckedInstruction(
         sourceAta,
@@ -323,7 +323,7 @@ export async function buildPaymentTransaction(
         destAta,
         user,
         params.amount_smallest_unit,
-        DECIMALS[currency],   // looked up — no hard-coded decimals
+        DECIMALS[currency], // looked up — no hard-coded decimals
         [],
         TOKEN_PROGRAM_ID,
       ),
@@ -334,9 +334,7 @@ export async function buildPaymentTransaction(
   tx.recentBlockhash = blockhash;
   tx.feePayer = user;
 
-  return tx
-    .serialize({ requireAllSignatures: false, verifySignatures: false })
-    .toString('base64');
+  return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
 }
 ```
 
@@ -345,19 +343,18 @@ export async function buildPaymentTransaction(
 Combines generate + build + DB insert. **This is the canonical endpoint handler — copy this shape.** **[pattern]**
 
 ```typescript
-import { Pool } from '@neondatabase/serverless';  // or pg, or any Postgres client
+import { Pool } from '@neondatabase/serverless'; // or pg, or any Postgres client
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 
-export async function createInvoice(
-  req: CreateInvoiceParams,
-): Promise<CreateInvoiceResult> {
-  const { memo, currency_mint, amount_smallest_unit, start_time, end_time } =
-    generateInvoiceParams({
+export async function createInvoice(req: CreateInvoiceParams): Promise<CreateInvoiceResult> {
+  const { memo, currency_mint, amount_smallest_unit, start_time, end_time } = generateInvoiceParams(
+    {
       currency: req.currency,
       price_smallest_unit: req.price_smallest_unit,
       durationSeconds: req.durationSeconds,
-    });
+    },
+  );
 
   const connection = new Connection(process.env.SOLANA_RPC_URL!);
   const txBase64 = await buildPaymentTransaction(connection, {
@@ -451,7 +448,7 @@ export async function verifyInvoiceOnChain(opts: {
 }): Promise<
   | { paid: true; tx_sig: string; blockTime: number }
   | { paid: false; reason: 'not_found' | 'expired' | 'already_marked_paid' }
->
+>;
 ```
 
 ### Step 6: Verification with retries

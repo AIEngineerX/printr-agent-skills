@@ -9,26 +9,32 @@ This file exports `verifyInvoiceOnChain` — the server-side payment-verificatio
 **Why not rely on the client's submitted signature?** Clients can be spoofed. Even if the client provides a `tx_sig`, the server must verify the tx exists, references the correct memo, and has the right amount/sender/recipient. Safety rule 6. **[pattern]**
 
 **Duplicate-pay safety.** Two independent mechanisms:
+
 1. The DB `UPDATE ... WHERE status='pending'` is idempotent — only the first caller flips the row (rowCount=1); all subsequent callers see rowCount=0 and must not credit. **[derived]**
 2. Memo + time-window uniqueness means only one tx on chain can satisfy any given invoice row.
 
 ## Full implementation
 
 ```typescript
-import { Connection, PublicKey, ParsedInstruction, PartiallyDecodedInstruction } from '@solana/web3.js';
+import {
+  Connection,
+  PublicKey,
+  ParsedInstruction,
+  PartiallyDecodedInstruction,
+} from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { Pool } from '@neondatabase/serverless';
 import bs58 from 'bs58';
 
-const MEMO_PROGRAM_ID   = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
-const TOKEN_PROGRAM_ID  = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
-const WSOL_MINT         = 'So11111111111111111111111111111111111111112';
-const USDC_MINT         = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const WSOL_MINT = 'So11111111111111111111111111111111111111112';
+const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
-const GRACE_PAST_END_SECONDS  = 300;   // accept confirmations up to 5 min past end_time
-const CLOCK_SKEW_SECONDS      = 60;    // allow 1 min of clock skew at start_time
-const SIGNATURE_PAGE_SIZE     = 200;   // see "Why 200 sigs?" below
+const GRACE_PAST_END_SECONDS = 300; // accept confirmations up to 5 min past end_time
+const CLOCK_SKEW_SECONDS = 60; // allow 1 min of clock skew at start_time
+const SIGNATURE_PAGE_SIZE = 200; // see "Why 200 sigs?" below
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 
@@ -89,9 +95,9 @@ export async function verifyInvoiceOnChain(opts: { memo: bigint }): Promise<Veri
   const sigs = await connection.getSignaturesForAddress(treasury, { limit: SIGNATURE_PAGE_SIZE });
 
   const windowStart = Number(inv.start_time) - CLOCK_SKEW_SECONDS;
-  const windowEnd   = Number(inv.end_time) + GRACE_PAST_END_SECONDS;
-  const candidates = sigs.filter((s) =>
-    s.blockTime != null && s.blockTime >= windowStart && s.blockTime <= windowEnd,
+  const windowEnd = Number(inv.end_time) + GRACE_PAST_END_SECONDS;
+  const candidates = sigs.filter(
+    (s) => s.blockTime != null && s.blockTime >= windowStart && s.blockTime <= windowEnd,
   );
   if (candidates.length === 0) return { paid: false, reason: 'not_found' };
 
@@ -116,7 +122,9 @@ export async function verifyInvoiceOnChain(opts: { memo: bigint }): Promise<Veri
 
     const payMatch = isSol
       ? ixs.some((ix) => instructionIsSolTransfer(ix, userPubkey, treasury, expectedAmount))
-      : ixs.some((ix) => instructionIsUsdcTransfer(ix, userPubkey, expectedTreasuryAta!, expectedAmount));
+      : ixs.some((ix) =>
+          instructionIsUsdcTransfer(ix, userPubkey, expectedTreasuryAta!, expectedAmount),
+        );
     if (!payMatch) continue;
 
     return { paid: true, tx_sig: candidates[i].signature, blockTime: tx.blockTime ?? 0 };
@@ -184,7 +192,9 @@ function instructionIsUsdcTransfer(
 
   const amt = info.tokenAmount
     ? BigInt(info.tokenAmount.amount)
-    : info.amount ? BigInt(info.amount) : -1n;
+    : info.amount
+      ? BigInt(info.amount)
+      : -1n;
   return amt === amount;
 }
 ```

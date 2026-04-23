@@ -9,7 +9,7 @@ Every skill follows the same structural layout. Use any of the three existing sk
 ### Required for every SKILL.md
 
 1. **YAML frontmatter** with `name` (must match directory name), `description` (the trigger — include specific keywords and example task phrasings), and `metadata` (author + version).
-2. **`## Before Starting Work` hard-blocking checklist.** Tells the adopting agent to stop and gather prerequisites before writing any code. Use this exact phrasing: *"You MUST ask the user for ALL unchecked items in your very first response. Do not assume defaults. Do not proceed until the user has explicitly answered each one."*
+2. **`## Before Starting Work` hard-blocking checklist.** Tells the adopting agent to stop and gather prerequisites before writing any code. Use this exact phrasing: _"You MUST ask the user for ALL unchecked items in your very first response. Do not assume defaults. Do not proceed until the user has explicitly answered each one."_
 3. **Safety Rules** section. Cover the universal Solana dev rules (never log private keys, never sign for user, validate amount > 0, decimal precision, always verify server-side). Add new rules as `[derived]` and document why they're needed.
 4. **Environment Variables** section with the RPC guardrail (warn that public mainnet-beta doesn't support `sendTransaction`, list Helius / Ankr / PublicNode as alternatives).
 5. **Install** section with explicitly pinned versions (`^1.98.0`, not `latest`).
@@ -33,10 +33,10 @@ Optional (add if your skill has a natural split):
 
 Every non-obvious claim in a SKILL.md must be tagged with one of:
 
-| Tag | Meaning |
-|---|---|
-| `[Printr]` | Verifiable against Printr's docs or live API |
-| `[pattern]` | Standard Solana / SPL / Jupiter / Web3.js convention |
+| Tag         | Meaning                                                   |
+| ----------- | --------------------------------------------------------- |
+| `[Printr]`  | Verifiable against Printr's docs or live API              |
+| `[pattern]` | Standard Solana / SPL / Jupiter / Web3.js convention      |
 | `[derived]` | Author's judgment call, not grounded in any upstream spec |
 
 Untagged claims are assumed obvious to a mid-level Solana developer. Tag when in doubt — readers need to know what to trust vs. verify.

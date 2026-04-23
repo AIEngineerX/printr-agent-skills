@@ -1,4 +1,3 @@
-
 import { describe, it, expect } from 'vitest';
 import { Keypair, VersionedTransaction } from '@solana/web3.js';
 import {
@@ -10,7 +9,7 @@ import {
   JUPITER_TIMEOUT_MS,
 } from '../src/swap/index.js';
 
-const SOL_MINT   = 'So11111111111111111111111111111111111111112';
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const INKED_MINT = '2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr';
 
 const live = process.env.SKILL_LIVE !== '0';
@@ -27,19 +26,39 @@ describe('quoteSwap — input validation', () => {
 
   it('throws on slippageBps <= 0', async () => {
     await expect(
-      quoteSwap({ inputMint: SOL_MINT, outputMint: INKED_MINT, amount: 1_000_000n, slippageBps: 0 }),
+      quoteSwap({
+        inputMint: SOL_MINT,
+        outputMint: INKED_MINT,
+        amount: 1_000_000n,
+        slippageBps: 0,
+      }),
     ).rejects.toThrow(/slippageBps must be > 0/);
     await expect(
-      quoteSwap({ inputMint: SOL_MINT, outputMint: INKED_MINT, amount: 1_000_000n, slippageBps: -50 }),
+      quoteSwap({
+        inputMint: SOL_MINT,
+        outputMint: INKED_MINT,
+        amount: 1_000_000n,
+        slippageBps: -50,
+      }),
     ).rejects.toThrow(/slippageBps must be > 0/);
   });
 
   it('throws on slippageBps > 5000', async () => {
     await expect(
-      quoteSwap({ inputMint: SOL_MINT, outputMint: INKED_MINT, amount: 1_000_000n, slippageBps: 5001 }),
+      quoteSwap({
+        inputMint: SOL_MINT,
+        outputMint: INKED_MINT,
+        amount: 1_000_000n,
+        slippageBps: 5001,
+      }),
     ).rejects.toThrow(/slippageBps must be <= 5000/);
     await expect(
-      quoteSwap({ inputMint: SOL_MINT, outputMint: INKED_MINT, amount: 1_000_000n, slippageBps: 10_000 }),
+      quoteSwap({
+        inputMint: SOL_MINT,
+        outputMint: INKED_MINT,
+        amount: 1_000_000n,
+        slippageBps: 10_000,
+      }),
     ).rejects.toThrow(/slippageBps must be <= 5000/);
   });
 
@@ -47,10 +66,20 @@ describe('quoteSwap — input validation', () => {
     if (!live) return;
     // Both should not throw validation; actual Jupiter call may proceed.
     await expect(
-      quoteSwap({ inputMint: SOL_MINT, outputMint: INKED_MINT, amount: 1_000_000n, slippageBps: 1 }),
+      quoteSwap({
+        inputMint: SOL_MINT,
+        outputMint: INKED_MINT,
+        amount: 1_000_000n,
+        slippageBps: 1,
+      }),
     ).resolves.toBeDefined();
     await expect(
-      quoteSwap({ inputMint: SOL_MINT, outputMint: INKED_MINT, amount: 1_000_000n, slippageBps: 5000 }),
+      quoteSwap({
+        inputMint: SOL_MINT,
+        outputMint: INKED_MINT,
+        amount: 1_000_000n,
+        slippageBps: 5000,
+      }),
     ).resolves.toBeDefined();
   });
 });

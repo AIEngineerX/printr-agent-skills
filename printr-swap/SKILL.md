@@ -4,7 +4,7 @@ description: >
   Use when the user wants to buy or sell a Printr POB token (or any Solana SPL token with a Meteora DBC bonding curve or DAMM v2 pool) via Jupiter routing. Handles both user-signed swaps (wallet adapter) and server-signed swaps (automated buybacks). Auto-detects bonding-curve vs graduated pool state. Standalone primitive — composable inside `printr-agent-payments` + `printr-tokenized-agent`, or usable alone.
 metadata:
   author: printr-community
-  version: "1.0"
+  version: '1.0'
 ---
 
 ## Before Starting Work
@@ -35,10 +35,10 @@ You MUST ask the user for ALL unchecked items in your very first response. Do no
 
 Printr POB tokens live in exactly one of two pool states. Your swap code needs to handle both without branching on `telecoin_id` — Jupiter abstracts it, but the UX and fee behavior differ:
 
-| Pool type | Ammkey label (Jupiter routePlan) | POB fees active? | Typical characteristics |
-| --- | --- | --- | --- |
-| **Meteora DBC** (bonding curve) | `"Meteora DBC"` or `"Meteora Dynamic Bonding Curve"` | **No** (pre-graduation — Printr V2 disables custom fees on the curve) | Steeper price impact per unit; curve-formula pricing; no deep liquidity. **[Printr]** |
-| **Meteora DAMM v2** (graduated) | `"Meteora DAMM v2"` or `"Meteora DAMM"` | **Yes** (POB fee model applies on every trade) | Regular DEX pool; constant-product-ish; liquidity proportional to what the bonding curve migrated. **[Printr]** |
+| Pool type                       | Ammkey label (Jupiter routePlan)                     | POB fees active?                                                      | Typical characteristics                                                                                         |
+| ------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Meteora DBC** (bonding curve) | `"Meteora DBC"` or `"Meteora Dynamic Bonding Curve"` | **No** (pre-graduation — Printr V2 disables custom fees on the curve) | Steeper price impact per unit; curve-formula pricing; no deep liquidity. **[Printr]**                           |
+| **Meteora DAMM v2** (graduated) | `"Meteora DAMM v2"` or `"Meteora DAMM"`              | **Yes** (POB fee model applies on every trade)                        | Regular DEX pool; constant-product-ish; liquidity proportional to what the bonding curve migrated. **[Printr]** |
 
 **Graduation check:** call `quote` and read `routePlan[0].swapInfo.label`. If it contains `"DBC"`, the token is pre-graduation. Only then should you warn the caller "POB fees are not active yet — buybacks during this phase do NOT pay stakers." **[Printr]**
 
@@ -96,10 +96,10 @@ Jupiter returns a base64-serialized `VersionedTransaction`. Your `@solana/web3.j
 
 **[pattern]** The whole skill uses only two endpoints:
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/swap/v1/quote` | Price discovery + route construction |
-| `POST` | `/swap/v1/swap` | Returns a signed-ready `VersionedTransaction` |
+| Method | Path             | Purpose                                       |
+| ------ | ---------------- | --------------------------------------------- |
+| `GET`  | `/swap/v1/quote` | Price discovery + route construction          |
+| `POST` | `/swap/v1/swap`  | Returns a signed-ready `VersionedTransaction` |
 
 Full docs: https://station.jup.ag/docs/apis/swap-api
 
@@ -142,14 +142,14 @@ export async function getPoolState(
     slippageBps: '100',
   });
   const res = await jupiterFetch(`/swap/v1/quote?${qs}`);
-  const quote = await res.json() as { routePlan?: Array<{ swapInfo: { label: string } }> };
+  const quote = (await res.json()) as { routePlan?: Array<{ swapInfo: { label: string } }> };
 
   const label = quote.routePlan?.[0]?.swapInfo.label ?? '';
   if (label.includes('DBC') || label.includes('Dynamic Bonding Curve')) {
     return { state: 'bonding-curve', quote };
   }
   if (label.includes('DAMM')) return { state: 'graduated', quote };
-  return { state: 'unknown', quote };  // caller MUST handle this; don't proceed on unknown
+  return { state: 'unknown', quote }; // caller MUST handle this; don't proceed on unknown
 }
 ```
 
@@ -161,7 +161,7 @@ export async function getPoolState(
 export type QuoteParams = {
   inputMint: string;
   outputMint: string;
-  amount: bigint;          // smallest unit of inputMint
+  amount: bigint; // smallest unit of inputMint
   slippageBps: number;
 };
 
@@ -191,13 +191,15 @@ export async function quoteSwap(params: QuoteParams): Promise<JupiterQuote> {
     slippageBps: String(params.slippageBps),
   });
   const res = await jupiterFetch(`/swap/v1/quote?${qs}`);
-  const quote = await res.json() as JupiterQuote;
+  const quote = (await res.json()) as JupiterQuote;
 
   if (!quote.routePlan?.length) {
     throw new Error(`No route available for ${params.inputMint} -> ${params.outputMint}`);
   }
   if (quote.outputMint !== params.outputMint) {
-    throw new Error(`Jupiter returned wrong output mint: expected ${params.outputMint}, got ${quote.outputMint}`);
+    throw new Error(
+      `Jupiter returned wrong output mint: expected ${params.outputMint}, got ${quote.outputMint}`,
+    );
   }
   return quote;
 }
@@ -213,10 +215,9 @@ import { Connection, VersionedTransaction, PublicKey } from '@solana/web3.js';
 export type BuildSwapParams = {
   quote: JupiterQuote;
   userPublicKey: PublicKey;
-  wrapAndUnwrapSol?: boolean;       // default true — auto-handles wSOL
-  priorityFee?:                     // default 'auto' — Jupiter picks based on congestion
-    | 'auto'
-    | { maxLamports: number; level: 'low' | 'medium' | 'high' | 'veryHigh' };
+  wrapAndUnwrapSol?: boolean; // default true — auto-handles wSOL
+  priorityFee?: // default 'auto' — Jupiter picks based on congestion
+    'auto' | { maxLamports: number; level: 'low' | 'medium' | 'high' | 'veryHigh' };
 };
 
 export async function buildSwapTransaction(
@@ -242,7 +243,7 @@ export async function buildSwapTransaction(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const { swapTransaction, lastValidBlockHeight } = await res.json() as {
+  const { swapTransaction, lastValidBlockHeight } = (await res.json()) as {
     swapTransaction: string;
     lastValidBlockHeight: number;
   };
@@ -296,12 +297,7 @@ See [`printr-agent-payments/references/WALLET_INTEGRATION.md`](../printr-agent-p
 Used by `printr-tokenized-agent` for hourly cycles. Signer is a server-held keypair loaded from `TREASURY_HOT_PRIVATE_KEY`.
 
 ```typescript
-import {
-  Connection,
-  Keypair,
-  VersionedTransaction,
-  PublicKey,
-} from '@solana/web3.js';
+import { Connection, Keypair, VersionedTransaction, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 
 export function loadHotKeypair(): Keypair {
