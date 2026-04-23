@@ -1,0 +1,21 @@
+# Code owners — auto-assigned as reviewer on every PR.
+#
+# All paths require approval from @AIEngineerX before merge.
+# This takes effect once branch protection with "Require review from Code
+# Owners" is enabled on main. Until then, it auto-assigns @AIEngineerX as
+# a reviewer on incoming PRs but does not block merge.
+
+*                                                @AIEngineerX
+
+# Per-skill ownership (explicit — same owner, keeps future contributors
+# clear on which skill they're touching):
+/printr-swap/                                    @AIEngineerX
+/printr-agent-payments/                          @AIEngineerX
+/printr-tokenized-agent/                         @AIEngineerX
+
+# Repo-level governance files always require owner review:
+/README.md                                       @AIEngineerX
+/LICENSE                                         @AIEngineerX
+/CONTRIBUTING.md                                 @AIEngineerX
+/SECURITY.md                                     @AIEngineerX
+/.github/                                        @AIEngineerX
