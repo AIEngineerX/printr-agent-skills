@@ -1,8 +1,3 @@
-/**
- * Payment verify suite — matchers + full verifyInvoiceOnChain flow with
- * pg-mem (real Postgres semantics) + mock Connection. USDC matcher path
- * was never tested before this suite.
- */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Keypair, PublicKey } from '@solana/web3.js';

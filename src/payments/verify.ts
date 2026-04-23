@@ -14,13 +14,10 @@ import {
   WSOL_MINT,
 } from './constants.js';
 
-export const GRACE_PAST_END_SECONDS = 300;  // accept confirmations up to 5 min past end_time
-export const CLOCK_SKEW_SECONDS = 60;       // allow 1 min of clock skew at start_time
-export const SIGNATURE_PAGE_SIZE = 200;     // free-tier RPC friendly, covers ~1–6h of mid-traffic
+export const GRACE_PAST_END_SECONDS = 300;
+export const CLOCK_SKEW_SECONDS = 60;
+export const SIGNATURE_PAGE_SIZE = 200;
 
-// Minimal structural interface for a pg-style pool — makes the verifier
-// testable with pg-mem (real SQL) or any Postgres driver without coupling
-// to @neondatabase/serverless specifically.
 export interface QueryablePool {
   query(text: string, params?: readonly unknown[]): Promise<{ rows: any[]; rowCount?: number | null }>;
 }
@@ -44,31 +41,18 @@ export interface VerifyContext {
   pool: QueryablePool;
   connection: Connection;
   treasuryPubkey: PublicKey;
-  /** Lazy-computed treasury USDC ATA. Only needed for USDC invoices. */
   treasuryUsdcAta?: () => Promise<string>;
 }
 
-/**
- * Treasury USDC ATA, lazy-memoized on first call. The ATA is deterministic
- * (mint + wallet), so the Promise is safe to cache for the process
- * lifetime. Concurrent callers share a single in-flight getAssociatedTokenAddress
- * call, not N.
- *
- * Exported as a factory so tests can construct fresh cache instances per
- * test (avoiding state leak across test cases).
- */
+/** Lazy-memoized treasury USDC ATA. Invalidates on rejection so a transient
+ *  failure doesn't lock in the error. */
 export function makeTreasuryUsdcAtaCache(treasuryPubkey: PublicKey): () => Promise<string> {
   let cached: Promise<string> | null = null;
   return (): Promise<string> => {
     if (cached) return cached;
-    cached = getAssociatedTokenAddress(
-      new PublicKey(USDC_MINT),
-      treasuryPubkey,
-    )
+    cached = getAssociatedTokenAddress(new PublicKey(USDC_MINT), treasuryPubkey)
       .then((pk) => pk.toBase58())
       .catch((e) => {
-        // Invalidate the rejected cache so the next call retries rather than
-        // locking in the failure forever.
         cached = null;
         throw e;
       });
@@ -79,9 +63,9 @@ export function makeTreasuryUsdcAtaCache(treasuryPubkey: PublicKey): () => Promi
 /**
  * Returns paid: true only when a single on-chain tx satisfies ALL of:
  *  - Memo instruction with data equal to String(invoice.memo)
- *  - Native SOL transfer user → treasury for exactly invoice.amount, OR
- *    SPL USDC transfer from user wallet → treasury's USDC ATA for exactly invoice.amount
- *  - Transaction blockTime within invoice.start_time .. invoice.end_time (with grace)
+ *  - SOL transfer user → treasury for exactly invoice.amount, OR
+ *    USDC transfer from user wallet → treasury's USDC ATA for exactly invoice.amount
+ *  - blockTime within [start_time - skew, end_time + grace]
  */
 export async function verifyInvoiceOnChain(
   ctx: VerifyContext,
@@ -101,9 +85,7 @@ export async function verifyInvoiceOnChain(
   if (inv.status === 'paid' && inv.tx_sig) {
     return { paid: true, tx_sig: inv.tx_sig, blockTime: 0 };
   }
-  if (inv.status !== 'pending') {
-    return { paid: false, reason: 'already_marked_paid' };
-  }
+  if (inv.status !== 'pending') return { paid: false, reason: 'already_marked_paid' };
 
   const now = Math.floor(Date.now() / 1000);
   const endTime = Number(inv.end_time);
@@ -154,15 +136,13 @@ export async function verifyInvoiceOnChain(
   return { paid: false, reason: 'not_found' };
 }
 
-// ---- instruction matchers — exported so the test suite can exercise each path ----
-
 type Ix = ParsedInstruction | PartiallyDecodedInstruction;
 
 export function instructionIsMemo(ix: Ix, expectedMemo: string): boolean {
   if (ix.programId.toBase58() !== MEMO_PROGRAM_ID) return false;
-  // Parsed form: { programId, program: 'spl-memo', parsed: <memo string> }
+  // jsonParsed form: { parsed: <memo string> }
   if ('parsed' in ix && typeof ix.parsed === 'string') return ix.parsed === expectedMemo;
-  // Raw form: { programId, accounts, data: base58-encoded UTF-8 memo bytes }
+  // Raw form: data is base58-encoded UTF-8 memo bytes
   if ('data' in ix && typeof ix.data === 'string') {
     return Buffer.from(bs58.decode(ix.data)).toString('utf8') === expectedMemo;
   }
@@ -217,17 +197,12 @@ export function instructionIsUsdcTransfer(
 
   const amt = info.tokenAmount
     ? BigInt(info.tokenAmount.amount)
-    : info.amount
-      ? BigInt(info.amount)
-      : -1n;
+    : info.amount ? BigInt(info.amount) : -1n;
   return amt === amount;
 }
 
-/**
- * Wrap verifyInvoiceOnChain in a 10×2s retry loop to absorb RPC indexer
- * propagation delay. Returns true when the verifier confirms and the DB
- * UPDATE flipped the row from 'pending' to 'paid' (rowCount === 1).
- */
+/** 10×2s retry loop absorbs RPC indexer propagation delay. Returns true only
+ *  when the DB UPDATE flipped a 'pending' row (rowCount=1). */
 export async function verifyInvoiceWithRetries(
   ctx: VerifyContext,
   memo: bigint,

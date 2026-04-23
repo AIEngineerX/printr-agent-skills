@@ -1,8 +1,3 @@
-/**
- * Invoice construction suite. Tests generateInvoiceParams validation +
- * buildPaymentTransaction for BOTH the SOL and USDC paths. USDC was
- * never tested before the refactor — this suite exercises it.
- */
 
 import { describe, it, expect } from 'vitest';
 import { Keypair, Transaction, PublicKey } from '@solana/web3.js';

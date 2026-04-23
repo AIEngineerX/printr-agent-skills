@@ -16,7 +16,6 @@ import {
   buildSwapTransaction,
   executeServerSwap,
   verifySwapOutput,
-  loadHotKeypair,
 } from '../swap/index.js';
 import { WSOL_MINT } from '../payments/constants.js';
 import type { QueryablePool } from '../payments/verify.js';
@@ -33,36 +32,10 @@ export interface CycleConfig {
   slippageBps: number;
 }
 
-/** Build a CycleConfig from env vars. Exported so tests can bypass env and
- * construct a config with injected Connection + Pool. */
-export function cycleConfigFromEnv(pool: QueryablePool, connection?: Connection): CycleConfig {
-  const conn = connection ?? new Connection(process.env.SOLANA_RPC_URL!, 'confirmed');
-  return {
-    pool,
-    connection: conn,
-    hotKeypair: loadHotKeypair(),
-    agentTokenMint: new PublicKey(process.env.AGENT_TOKEN_MINT!),
-    thresholdLamports: BigInt(process.env.BUYBACK_THRESHOLD_LAMPORTS!),
-    maxPerCycleLamports: BigInt(process.env.BUYBACK_MAX_LAMPORTS!),
-    slippageBps: Number(process.env.BUYBACK_SLIPPAGE_BPS!),
-  };
-}
-
-/**
- * Check whether a previous cycle left the hot wallet holding un-burned
- * agent tokens. If so, return the recovery directive so the caller burns
- * those before starting a new swap.
- *
- * Orphan: hot wallet holds agent tokens but no burn_event row in
- * status='swap_done' — indicates DB/chain drift, requires manual fix.
- */
 export async function findRecoveryCycle(
   cfg: CycleConfig,
 ): Promise<{ id: number; amountToBurn: bigint } | null> {
-  const ata = await getAssociatedTokenAddress(
-    cfg.agentTokenMint,
-    cfg.hotKeypair.publicKey,
-  );
+  const ata = await getAssociatedTokenAddress(cfg.agentTokenMint, cfg.hotKeypair.publicKey);
 
   let ataBalance: bigint;
   try {
@@ -89,30 +62,20 @@ export async function findRecoveryCycle(
     );
   }
 
-  return {
-    id: Number(rows[0].id),
-    amountToBurn: ataBalance, // burn actual ATA balance, not recorded quote
-  };
+  // Burn the actual ATA balance, not the recorded quote.
+  return { id: Number(rows[0].id), amountToBurn: ataBalance };
 }
 
 export type StartCycleResult =
   | { action: 'noop'; reason: 'below_threshold'; hotBalance: bigint }
-  | {
-      action: 'swapped';
-      cycleId: number;
-      swapSig: string;
-      bought: bigint;
-      solIn: bigint;
-    };
+  | { action: 'swapped'; cycleId: number; swapSig: string; bought: bigint; solIn: bigint };
 
 export async function startCycle(cfg: CycleConfig): Promise<StartCycleResult> {
   const hotBalanceLamports = BigInt(
     await cfg.connection.getBalance(cfg.hotKeypair.publicKey, 'confirmed'),
   );
   const available = hotBalanceLamports - FEE_RESERVE_LAMPORTS;
-  const amountIn = available < cfg.maxPerCycleLamports
-    ? available
-    : cfg.maxPerCycleLamports;
+  const amountIn = available < cfg.maxPerCycleLamports ? available : cfg.maxPerCycleLamports;
 
   if (hotBalanceLamports < cfg.thresholdLamports || amountIn <= 0n) {
     return { action: 'noop', reason: 'below_threshold', hotBalance: hotBalanceLamports };
@@ -130,23 +93,17 @@ export async function startCycle(cfg: CycleConfig): Promise<StartCycleResult> {
     userPublicKey: cfg.hotKeypair.publicKey,
   });
 
-  const swapSig = await executeServerSwap(
-    cfg.connection,
-    tx,
-    lastValidBlockHeight,
-    cfg.hotKeypair,
-  );
+  const swapSig = await executeServerSwap(cfg.connection, tx, lastValidBlockHeight, cfg.hotKeypair);
 
-  const minOut = BigInt(quote.otherAmountThreshold);
   const actualOut = await verifySwapOutput(
     cfg.connection,
     cfg.agentTokenMint,
     cfg.hotKeypair.publicKey,
-    minOut,
+    BigInt(quote.otherAmountThreshold),
   );
 
   // Record the swap BEFORE the burn runs. If the burn fails after this,
-  // findRecoveryCycle will pick up the orphan balance next cycle.
+  // findRecoveryCycle picks up the orphan balance next cycle.
   const { rows } = await cfg.pool.query(
     `INSERT INTO burn_event
        (sol_in_lamports, agent_token_bought, agent_token_burned, swap_sig, status)
@@ -154,9 +111,14 @@ export async function startCycle(cfg: CycleConfig): Promise<StartCycleResult> {
      RETURNING id`,
     [amountIn.toString(), actualOut.toString(), swapSig],
   );
-  const cycleId = Number(rows[0].id);
 
-  return { action: 'swapped', cycleId, swapSig, bought: actualOut, solIn: amountIn };
+  return {
+    action: 'swapped',
+    cycleId: Number(rows[0].id),
+    swapSig,
+    bought: actualOut,
+    solIn: amountIn,
+  };
 }
 
 export async function burnAgentTokens(
@@ -164,21 +126,13 @@ export async function burnAgentTokens(
   cycleId: number,
   amountToBurn: bigint,
 ): Promise<string> {
-  const ata = await getAssociatedTokenAddress(
-    cfg.agentTokenMint,
-    cfg.hotKeypair.publicKey,
-  );
+  const ata = await getAssociatedTokenAddress(cfg.agentTokenMint, cfg.hotKeypair.publicKey);
 
   const tx = new Transaction();
   tx.add(
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 }),
     ComputeBudgetProgram.setComputeUnitLimit({ units: 40_000 }),
-    createBurnInstruction(
-      ata,
-      cfg.agentTokenMint,
-      cfg.hotKeypair.publicKey,
-      amountToBurn,
-    ),
+    createBurnInstruction(ata, cfg.agentTokenMint, cfg.hotKeypair.publicKey, amountToBurn),
   );
 
   const { blockhash, lastValidBlockHeight } =
@@ -203,14 +157,8 @@ export async function burnAgentTokens(
     `UPDATE burn_event
         SET agent_token_burned = $1,
             burn_sig = $2,
-            status = CASE
-              WHEN agent_token_staked = 0 THEN 'complete'
-              ELSE 'burn_done'
-            END,
-            completed_at = CASE
-              WHEN agent_token_staked = 0 THEN now()
-              ELSE completed_at
-            END
+            status = CASE WHEN agent_token_staked = 0 THEN 'complete' ELSE 'burn_done' END,
+            completed_at = CASE WHEN agent_token_staked = 0 THEN now() ELSE completed_at END
       WHERE id = $3`,
     [amountToBurn.toString(), sig, cycleId],
   );

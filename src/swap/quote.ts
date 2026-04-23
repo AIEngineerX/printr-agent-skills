@@ -3,18 +3,11 @@ import { jupiterFetch, type JupiterQuote, type PoolState } from './jupiter.js';
 export interface QuoteParams {
   inputMint: string;
   outputMint: string;
-  amount: bigint;          // smallest unit of inputMint
+  amount: bigint;
   slippageBps: number;
 }
 
-/**
- * Classify a token's pool state (bonding-curve / graduated / unknown) by
- * reading the first route's AMM label. Cheap — ~50–150ms per call.
- *
- * Callers MUST handle 'unknown' explicitly — do not treat it as "safe to
- * proceed". An unknown label means Jupiter found a route but we couldn't
- * classify the venue; the safest action is to abort and investigate.
- */
+/** Caller MUST abort on 'unknown' — Jupiter found a route but we couldn't classify the venue. */
 export async function getPoolState(
   inputMint: string,
   outputMint: string,
@@ -40,9 +33,7 @@ export async function getPoolState(
 export async function quoteSwap(params: QuoteParams): Promise<JupiterQuote> {
   if (params.amount <= 0n) throw new Error('amount must be > 0');
   if (params.slippageBps <= 0) throw new Error('slippageBps must be > 0');
-  if (params.slippageBps > 5000) {
-    throw new Error('slippageBps must be <= 5000 (5%)');
-  }
+  if (params.slippageBps > 5000) throw new Error('slippageBps must be <= 5000 (5%)');
 
   const qs = new URLSearchParams({
     inputMint: params.inputMint,
@@ -54,9 +45,7 @@ export async function quoteSwap(params: QuoteParams): Promise<JupiterQuote> {
   const quote = (await res.json()) as JupiterQuote;
 
   if (!quote.routePlan?.length) {
-    throw new Error(
-      `No route available for ${params.inputMint} -> ${params.outputMint}`,
-    );
+    throw new Error(`No route available for ${params.inputMint} -> ${params.outputMint}`);
   }
   if (quote.outputMint !== params.outputMint) {
     throw new Error(

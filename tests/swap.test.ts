@@ -1,8 +1,3 @@
-/**
- * Swap suite — real Jupiter calls against $INKED (public mainnet pool)
- * plus full validation-edge coverage. No RPC submit is attempted; the
- * submit path is exercised through mocks in the tokenized-agent suite.
- */
 
 import { describe, it, expect } from 'vitest';
 import { Keypair, VersionedTransaction } from '@solana/web3.js';

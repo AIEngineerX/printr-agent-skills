@@ -1,7 +1,3 @@
-// Jupiter base URL + shared fetch helper. Used by every Jupiter-calling
-// helper in this module. JUPITER_TIMEOUT_MS caps individual calls so a
-// hung Jupiter node cannot stall a cron.
-
 export const JUPITER_BASE = process.env.JUPITER_API_URL ?? 'https://lite-api.jup.ag';
 export const JUPITER_TIMEOUT_MS = 10_000;
 
@@ -18,8 +14,6 @@ export async function jupiterFetch(
   }
   return res;
 }
-
-// ---- Jupiter response types ----
 
 export interface JupiterQuote {
   inputMint: string;
