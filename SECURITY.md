@@ -8,7 +8,7 @@ This repository contains **Claude Code skill documentation** for building tokeni
 
 1. **Unsafe patterns in skill documentation** — code examples that, if adopted as-is, would expose adopters to attack. Examples: key leakage, invoice replay vectors, unauthorized access paths, race conditions in the verifier, incorrect retry semantics.
 2. **Incorrect safety-rule claims** — any place the documentation says "safe" about something that isn't, or omits a rule that materially affects adopter security.
-3. **Provenance drift** — claims tagged `[pump.fun]` that don't match upstream `github.com/pump-fun/pump-fun-skills`, or claims tagged `[Printr]` that don't match Printr's live API behavior. Drift here can lead adopters to build against stale assumptions.
+3. **Provenance drift** — claims tagged `[Printr]` that don't match Printr's live API behavior, or `[pattern]` claims that don't match current Solana / SPL conventions. Drift here can lead adopters to build against stale assumptions.
 4. **Supply-chain drift** — pinned dependency versions (`@solana/web3.js@^1.98.0`, etc.) being known-vulnerable or abandoned upstream.
 
 ### Out of scope
@@ -79,7 +79,7 @@ Skills recommend a capped hot-wallet pattern via `BUYBACK_MAX_LAMPORTS` (default
 
 ### No shared JWT / SDK
 
-Unlike pump.fun's flow (which uses `@pump-fun/agent-payments-sdk` with an SDK-embedded public JWT), this kit has **no shared authentication artifact**. Every adopter's deployment is self-contained — compromise of one adopter does not affect others.
+This kit has **no shared authentication artifact** across adopters. No embedded API keys, no shared JWTs, no hosted authority. Every adopter's deployment is fully self-contained — compromise of one adopter does not affect others.
 
 ### Memo collision
 
@@ -102,7 +102,6 @@ If a confirmed issue traces to an upstream dependency, we follow coordinated-dis
 | Upstream | Contact |
 |---|---|
 | **Printr** (protocol) | `@VikrewW` on Telegram |
-| **pump.fun Tokenized Agents pattern** | PR against `github.com/pump-fun/pump-fun-skills` |
 | **Jupiter** (swap API) | `station.jup.ag` support / their Discord |
 | **Meteora** (pools) | `app.meteora.ag` / their Discord |
 | **Solana Labs** (web3.js, spl-token) | GitHub issue on the relevant repo |

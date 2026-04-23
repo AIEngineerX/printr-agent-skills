@@ -1,8 +1,6 @@
 # Wallet Integration (Frontend)
 
-This doc is **substantially identical** to pump.fun's `tokenized-agents/WALLET_INTEGRATION.md` **[pump.fun]**. The Solana wallet-adapter stack is platform-agnostic — the same `useWallet()`, `useConnection()`, `signTransaction` flow works whether you're paying a pump.fun tokenized agent or a Printr POB token's treasury.
-
-Upstream reference (always authoritative): https://raw.githubusercontent.com/pump-fun/pump-fun-skills/refs/heads/main/tokenized-agents/references/WALLET_INTEGRATION.md
+Standard Solana wallet-adapter setup for the browser-side of the payment flow. The `useWallet()`, `useConnection()`, `signTransaction` pattern below is platform-agnostic and works for any Solana SPL payment flow. **[pattern]**
 
 ## Install
 
@@ -198,9 +196,9 @@ function formatPrice(smallestUnit: string, currency: "SOL" | "USDC"): string {
 
 ## Hook usage notes
 
-- **Call `useWallet()` and `useConnection()` only at the top level** of your component. Do NOT call them inside event handlers or async helpers. Pass `signTransaction` and `connection` down as parameters. **[pump.fun]**
+- **Call `useWallet()` and `useConnection()` only at the top level** of your component. Do NOT call them inside event handlers or async helpers. Pass `signTransaction` and `connection` down as parameters. **[pattern]**
 - `signTransaction` can be `undefined` (e.g. if the wallet is connected but doesn't expose signing — rare but possible for some embedded wallets). Always guard.
-- `WalletMultiButton` is pump.fun's default; you can swap for `WalletDisconnectButton` or a custom UI. The underlying `useWallet()` API is identical.
+- `WalletMultiButton` is the standard wallet-adapter UI; swap for `WalletDisconnectButton` or a custom UI as needed. The underlying `useWallet()` API is identical.
 
 ## Wallet SSR note (Next.js)
 

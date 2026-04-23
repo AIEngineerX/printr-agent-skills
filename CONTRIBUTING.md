@@ -4,17 +4,17 @@ Adding a new skill, improving an existing one, or fixing a documentation bug? Th
 
 ## Quality bar
 
-Skills here mirror the [pump-fun-skills](https://github.com/pump-fun/pump-fun-skills) structural pattern exactly. Deviating from it is not usually the right call — the pattern is load-bearing for how Claude Code triggers and uses skills. Use any of the three existing skills as your template.
+Every skill follows the same structural layout. Use any of the three existing skills as your template.
 
 ### Required for every SKILL.md
 
 1. **YAML frontmatter** with `name` (must match directory name), `description` (the trigger — include specific keywords and example task phrasings), and `metadata` (author + version).
-2. **`## Before Starting Work` hard-blocking checklist.** Tells the adopting agent to stop and gather prerequisites before writing any code. Copy the phrasing from pump.fun's upstream SKILL.md: *"You MUST ask the user for ALL unchecked items in your very first response. Do not assume defaults. Do not proceed until the user has explicitly answered each one."*
-3. **Safety Rules** section. Lift from pump.fun's upstream where applicable — it covers the universal Solana dev rules (never log private keys, never sign for user, validate amount > 0, decimal precision, always verify server-side). Add new rules as `[derived]` and document why they're needed.
+2. **`## Before Starting Work` hard-blocking checklist.** Tells the adopting agent to stop and gather prerequisites before writing any code. Use this exact phrasing: *"You MUST ask the user for ALL unchecked items in your very first response. Do not assume defaults. Do not proceed until the user has explicitly answered each one."*
+3. **Safety Rules** section. Cover the universal Solana dev rules (never log private keys, never sign for user, validate amount > 0, decimal precision, always verify server-side). Add new rules as `[derived]` and document why they're needed.
 4. **Environment Variables** section with the RPC guardrail (warn that public mainnet-beta doesn't support `sendTransaction`, list Helius / Ankr / PublicNode as alternatives).
 5. **Install** section with explicitly pinned versions (`^1.98.0`, not `latest`).
 6. **Dependency Compatibility** warning block where peer-dep mismatches are possible.
-7. **Runnable TypeScript code** for every step of the flow. No pseudocode, no stubs, no `TODO:`. Use the pump.fun example as a depth reference.
+7. **Runnable TypeScript code** for every step of the flow. No pseudocode, no stubs, no `TODO:`.
 8. **End-to-End Flow** numbered summary at the bottom.
 9. **Composes With / When NOT to use** sections so adopters know where your skill fits in the stack.
 
@@ -35,7 +35,6 @@ Every non-obvious claim in a SKILL.md must be tagged with one of:
 
 | Tag | Meaning |
 |---|---|
-| `[pump.fun]` | Lifted verbatim or near-verbatim from upstream pump-fun-skills |
 | `[Printr]` | Verifiable against Printr's docs or live API |
 | `[pattern]` | Standard Solana / SPL / Jupiter / Web3.js convention |
 | `[derived]` | Author's judgment call, not grounded in any upstream spec |
@@ -45,9 +44,9 @@ Untagged claims are assumed obvious to a mid-level Solana developer. Tag when in
 ## Testing a skill before PR
 
 1. Copy your new skill into `~/.claude/skills/` on your dev machine.
-2. Restart Claude Code.
+2. Restart your agent (Claude Code, Copilot CLI, Gemini CLI, etc.).
 3. Paste one of the example prompts from your skill's `description` field.
-4. Confirm: (a) the skill triggers (Claude announces it's using the skill), and (b) Claude walks you through the pre-work checklist before writing any code.
+4. Confirm: (a) the skill triggers (the agent announces it), and (b) the agent walks you through the pre-work checklist before writing any code.
 5. If either step fails, revise the `description` field — it's the trigger, and a bad description is the most common reason skills don't activate.
 
 ## Adding a new skill
@@ -75,7 +74,7 @@ If you're adding one of these (or something new), also update the root `README.m
 
 ## Code style inside SKILL.md examples
 
-- **TypeScript only** for runtime code. Reason: `@solana/web3.js` + `@solana/spl-token` are TypeScript-first; all pump.fun examples are TS; adopters expect types.
+- **TypeScript only** for runtime code. `@solana/web3.js` + `@solana/spl-token` are TypeScript-first; adopters expect types.
 - **Explicit imports.** Every example must compile as-is if pasted into a fresh project. No `// import { ... }` placeholder comments.
 - **Strict types.** `bigint` for on-chain amounts, not `number`. `PublicKey` for pubkeys, not `string`. String-ify at JSON boundaries.
 - **`??` for env defaults, not `||`.** Empty-string env vars should override the default only if deliberately empty; `||` falls back on empty-string, `??` only on undefined/null.

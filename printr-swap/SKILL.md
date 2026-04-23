@@ -22,16 +22,14 @@ You MUST ask the user for ALL unchecked items in your very first response. Do no
 
 ## Safety Rules
 
-Every rule below is **[pump.fun]** unless marked otherwise — lifted near-verbatim from `pump-fun-skills/tokenized-agents/SKILL.md` and carried through for platform parity.
-
-- **NEVER** log, print, or return private keys or secret key material.
-- **NEVER** sign transactions on behalf of a user when the signer is a wallet adapter — you build the transaction, the user signs.
+- **NEVER** log, print, or return private keys or secret key material. **[pattern]**
+- **NEVER** sign transactions on behalf of a user when the signer is a wallet adapter — you build the transaction, the user signs. **[pattern]**
 - For **server-signed** swaps, cap per-cycle amount via `BUYBACK_MAX_LAMPORTS` (or equivalent config) before calling `executeSwap`. No exceptions. **[derived]**
-- Always validate `amount > 0` and `slippageBps > 0` before calling Jupiter.
+- Always validate `amount > 0` and `slippageBps > 0` before calling Jupiter. **[pattern]**
 - Validate `slippageBps <= 5000` (5%) and warn the caller above `500` (5%) — slippage above 5% on a buyback usually indicates broken liquidity, not acceptable cost. **[derived]**
 - Always inspect the quote's `routePlan` before signing: if the route length is 0 or the output mint doesn't match the expected mint, abort. **[derived]**
 - Always verify post-swap that the ATA balance increased by at least `quote.outAmount * (1 - slippageBps/10_000)` — if not, the swap filled below tolerance or failed silently. **[pattern]**
-- **Always verify your code against this skill before finalizing.** Re-read parameter names, the quote/swap call sequence, and the Jupiter endpoint paths before delivering generated code. **[pump.fun]**
+- **Always verify your code against this skill before finalizing.** Re-read parameter names, the quote/swap call sequence, and the Jupiter endpoint paths before delivering generated code. **[derived]**
 
 ## Supported Pool Types
 
@@ -65,7 +63,7 @@ JUPITER_API_URL=https://lite-api.jup.ag
 TREASURY_HOT_PRIVATE_KEY=<base58-secret-key>
 ```
 
-**RPC for mainnet-beta:** The default Solana public RPC (`https://api.mainnet-beta.solana.com`) does **not** support sending transactions. You MUST ask the user which RPC endpoint to use. Present these free mainnet-beta options if the user does not have their own: **[pump.fun]**
+**RPC for mainnet-beta:** The default Solana public RPC (`https://api.mainnet-beta.solana.com`) does **not** support sending transactions. You MUST ask the user which RPC endpoint to use. Present these free mainnet-beta options if the user does not have their own **[pattern]**:
 
 - **Helius** — `https://mainnet.helius-rpc.com/?api-key=<KEY>` (free tier, requires signup)
 - **Solana Tracker** — `https://rpc.solanatracker.io/public`
@@ -86,9 +84,9 @@ No SDK for Jupiter — we call its public HTTP endpoints directly. This keeps th
 
 ### Dependency Compatibility — IMPORTANT
 
-Jupiter returns a base64-serialized `VersionedTransaction`. Your `@solana/web3.js` major version MUST match whatever the rest of your project uses. Mismatched majors can produce serialization bugs that silently drop instructions. **[pump.fun]**
+Jupiter returns a base64-serialized `VersionedTransaction`. Your `@solana/web3.js` major version MUST match whatever the rest of your project uses. Mismatched majors can produce serialization bugs that silently drop instructions. **[pattern]**
 
-**Rules:** **[pump.fun]**
+**Rules** **[pattern]**:
 
 1. Before installing `@solana/web3.js`, check what version every other Solana package in your project expects (inspect `package.json` and `package-lock.json`). Pin to a single major (currently `^1.98.0`).
 2. Never blindly install "latest". Version 2.x of `@solana/web3.js` is a breaking redesign and incompatible with the code in this skill.
@@ -284,7 +282,7 @@ export async function executeUserSwap(
 }
 ```
 
-See `references/WALLET_INTEGRATION.md` from `pump-fun-skills/tokenized-agents` (identical, platform-agnostic) for WalletProvider setup.
+See [`printr-agent-payments/references/WALLET_INTEGRATION.md`](../printr-agent-payments/references/WALLET_INTEGRATION.md) for the full WalletProvider setup (platform-agnostic — same wallet-adapter stack applies to user-signed swaps).
 
 ### Step 3b: Server-signed swap (automated buyback)
 

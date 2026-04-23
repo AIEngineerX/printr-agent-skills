@@ -1,6 +1,6 @@
 # Scenario Tests — printr-agent-payments
 
-Five scenarios, directly parallel to `pump-fun-skills/tokenized-agents/SCENARIOS.md` with the one-item-per-scenario structural match **[pump.fun]**, adapted for the hand-rolled memo-match verification path.
+Five scenarios covering the core verification paths — happy path, verify-before-payment, replay, mismatched params, and expired invoice. Each scenario has numbered steps and the expected outcome. Run through these mentally before shipping new code that touches `verifyInvoiceOnChain`.
 
 ## Scenario 1: Happy Path — Pay and Verify
 
@@ -26,7 +26,7 @@ Five scenarios, directly parallel to `pump-fun-skills/tokenized-agents/SCENARIOS
 4. `verifyInvoiceOnChain` loads row (status='pending'), scans treasury sigs, finds no matching tx.
 5. `verifyInvoiceWithRetries` tries 10 × 2s = 20s of retries; all miss.
 6. Returns `false`. Server returns `{ paid: false, reason: 'not_found' }` to client.
-7. Agent tells user "payment not confirmed — retry after paying." **[pump.fun]**
+7. Agent tells user "payment not confirmed — retry after paying."
 
 ## Scenario 3: Duplicate Payment — DB + On-Chain Rejection
 

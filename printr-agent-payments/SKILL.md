@@ -1,7 +1,7 @@
 ---
 name: printr-agent-payments
 description: >
-  Use when the user wants to charge users for agent actions and the agent's token lives on Printr (or any non-pump.fun Solana platform). Builds Solana payment transactions with a unique memo, serializes them for client signing, and verifies invoice payments on-chain by scanning the treasury wallet's signature history. Hand-rolled — does NOT use @pump-fun/agent-payments-sdk (that SDK is pump.fun-exclusive). Platform-agnostic otherwise: works for any SPL mint and any Solana wallet adapter.
+  Use when building a Solana paywall — charging users for agent actions with on-chain memo-match invoice verification. Generates cryptographically-random memos, builds SOL or USDC transfer transactions for client signing, and verifies payments on-chain by scanning the treasury wallet's signature history. Platform-agnostic — works for any Solana SPL mint and any Solana wallet adapter. Pairs with `printr-swap` and `printr-tokenized-agent` for a full agent-revenue + buyback-and-burn loop on Printr POB tokens.
 metadata:
   author: printr-community
   version: "1.0"
@@ -23,7 +23,7 @@ You MUST ask the user for ALL unchecked items in your very first response. Do no
 
 ## Safety Rules
 
-Rules 1–7 are lifted from `pump-fun-skills/tokenized-agents/SKILL.md` near-verbatim **[pump.fun]**. Rule 8 is new because we don't have pump.fun's on-chain Invoice-ID PDA preventing replay — we must enforce uniqueness ourselves. **[derived]**
+Rules 1–6 are standard Solana / payment-skill practice **[pattern]**. Rule 7 is the meta-rule that prevents spec-drift during generation **[derived]**. Rule 8 is specific to this kit — without an on-chain PDA enforcing invoice uniqueness, we enforce it at the DB layer **[derived]**.
 
 1. **NEVER** log, print, or return private keys or secret key material.
 2. **NEVER** sign transactions on behalf of a user — you build the instruction, the user signs.
@@ -32,7 +32,7 @@ Rules 1–7 are lifted from `pump-fun-skills/tokenized-agents/SKILL.md` near-ver
 5. Use the correct decimal precision for the currency (6 decimals for USDC, 9 for SOL).
 6. **Always verify payments on the server** using `verifyInvoiceOnChain` before delivering any service. Never trust the client alone — clients can be spoofed.
 7. **Always verify your code against this skill before finalizing.** Before delivering generated code, re-read the relevant sections of this document and confirm parameter names, types, order, and defaults match exactly.
-8. **The memo column in your invoice table MUST have a UNIQUE constraint.** Without it, a collision in the `Math.random()` memo generator allows an attacker to pay the lowest-priced invoice and redeem the highest. **[derived — pump.fun doesn't need this rule because their on-chain PDA enforces it; we must]**
+8. **The memo column in your invoice table MUST have a UNIQUE constraint.** Without it, a collision in the cryptographic-random memo generator would allow an attacker to pay the lowest-priced invoice and redeem the highest.
 
 ## Supported Currencies
 
@@ -41,7 +41,7 @@ Rules 1–7 are lifted from `pump-fun-skills/tokenized-agents/SKILL.md` near-ver
 | USDC        | 6        | `1000000` = 1 USDC    | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
 | Wrapped SOL | 9        | `1000000000` = 1 SOL  | `So11111111111111111111111111111111111111112` |
 
-**SOL vs Wrapped SOL:** The skill builds *native SOL* transfers via `SystemProgram.transfer` when `CURRENCY_MINT = wSOL`. No wrapping is needed — we take lamports directly. The `wSOL` mint is recorded in the invoice only for equivalence/parity with pump.fun's schema. **[derived]**
+**SOL vs Wrapped SOL:** The skill builds *native SOL* transfers via `SystemProgram.transfer` when `CURRENCY_MINT = wSOL`. No wrapping is needed — we take lamports directly. The `wSOL` mint is recorded in the invoice as a consistent currency identifier (so the invoice schema stays uniform across SOL and SPL currencies). **[derived]**
 
 ## Environment Variables
 
@@ -73,7 +73,7 @@ DATABASE_URL=postgres://user:pass@host/db
 INVOICE_TTL_SECONDS=86400
 ```
 
-**RPC for mainnet-beta:** The default Solana public RPC (`https://api.mainnet-beta.solana.com`) does **not** support sending transactions. You MUST ask the user which RPC endpoint to use. Present these free mainnet-beta options if the user does not have their own: **[pump.fun]**
+**RPC for mainnet-beta:** The default Solana public RPC (`https://api.mainnet-beta.solana.com`) does **not** support sending transactions. You MUST ask the user which RPC endpoint to use. Present these free mainnet-beta options if the user does not have their own **[pattern]**:
 
 - **Helius** — `https://mainnet.helius-rpc.com/?api-key=<KEY>`
 - **Solana Tracker** — `https://rpc.solanatracker.io/public`
@@ -92,9 +92,9 @@ npm install @solana/web3.js@^1.98.0 @solana/spl-token@^0.4.0 @solana/spl-memo@^0
 
 ### Dependency Compatibility — IMPORTANT
 
-`@solana/web3.js` + `@solana/spl-token` + `@solana/spl-memo` + `@solana/wallet-adapter-*` must all be on compatible majors. Mismatched versions produce silent serialization bugs. **[pump.fun]**
+`@solana/web3.js` + `@solana/spl-token` + `@solana/spl-memo` + `@solana/wallet-adapter-*` must all be on compatible majors. Mismatched versions produce silent serialization bugs. **[pattern]**
 
-**Rules:** **[pump.fun]**
+**Rules** **[pattern]**:
 
 1. Pin `@solana/web3.js` at a single major across the whole app (currently `^1.98.0`; do NOT mix with `2.x`).
 2. Never blindly install "latest". Check peer-dep ranges in `@solana/spl-token` and the wallet-adapter packages first.
@@ -130,7 +130,7 @@ For dev-only in-memory mode, the equivalent is a `Map<bigint, Invoice>` guarded 
 
 ## SDK Setup — There Is No SDK
 
-Unlike pump.fun's flow (which uses `PumpAgent` from `@pump-fun/agent-payments-sdk`), we hand-roll. The building blocks: **[derived]**
+This kit hand-rolls every piece. No external SDK is required. The building blocks: **[derived]**
 
 - `SystemProgram.transfer` — for SOL payments
 - `createTransferCheckedInstruction` from `@solana/spl-token` — for USDC payments
@@ -374,7 +374,7 @@ export async function createInvoice(
 
 ### Step 4: Client signs and submits
 
-Identical to pump.fun's flow (this part is genuinely platform-agnostic):
+Standard Solana wallet-adapter submission — platform-agnostic:
 
 ```typescript
 // Client (browser)
@@ -407,7 +407,7 @@ See `references/WALLET_INTEGRATION.md` for the full WalletProvider + `PaymentBut
 
 ### Step 5: Verify invoice on-chain (server)
 
-This is the hand-rolled replacement for pump.fun's `validateInvoicePayment`. It scans the treasury wallet's recent signatures, parses each candidate tx, and matches:
+The verifier scans the treasury wallet's recent signatures, parses each candidate tx, and matches:
 
 1. Memo-program instruction with exact memo string.
 2. Payment instruction (SystemProgram.transfer for SOL, or spl-token transferChecked for USDC) from user → treasury with exact amount.
@@ -426,7 +426,7 @@ export async function verifyInvoiceOnChain(opts: {
 
 ### Step 6: Verification with retries
 
-Transactions take a few seconds to propagate to the RPC's signature index. Use a retry loop identical to pump.fun's: **[pump.fun]**
+Transactions take a few seconds to propagate to the RPC's signature index. Use a retry loop (10 attempts × 2s) **[pattern]**:
 
 ```typescript
 export async function verifyInvoiceWithRetries(memo: bigint): Promise<boolean> {
@@ -482,7 +482,6 @@ See `references/SCENARIOS.md` for the five canonical tests (happy path, verify-b
 
 ## When NOT to use
 
-- **pump.fun-launched tokens.** Use `@pump-fun/agent-payments-sdk` — it wraps the same mechanic with on-chain PDA-based duplicate prevention, which is strictly safer than our DB UNIQUE constraint. **[pump.fun]**
 - **Apps that cannot commit to a persistent invoice store in production.** In-memory mode is dev-only; serverless restarts erase it and allow replay attacks.
 - **Apps that only need user login without payment.** This skill is payment-gated access. If all you need is wallet auth, use an Ed25519 signature challenge instead — simpler, no on-chain txs required.
-- **Cross-chain payments.** This skill is Solana-only. For EVM tokenized agents, build an equivalent using Permit2 + block-scanning. Out of scope.
+- **Cross-chain payments.** This skill is Solana-only. For EVM equivalents, build your own using Permit2 + block-scanning. Out of scope.

@@ -1,7 +1,7 @@
 ---
 name: printr-tokenized-agent
 description: >
-  Build a tokenized-agent loop on a Printr POB token. Composes `printr-agent-payments` (accept user SOL/USDC) with `printr-swap` (Jupiter buyback) and adds SPL burn plus a scheduled buyback cycle. Mirrors pump.fun's Tokenized Agents mechanic but hand-rolls everything (the @pump-fun/agent-payments-sdk only works on pump.fun tokens) and runs the buyback+burn under the creator's own treasury. Adds "double-effect" over pump.fun's model: on POB-model-1 tokens, the buyback trade itself pays the staking pool on its way to the burn. Triggers on "Printr tokenized agent", "agent revenue burn", "buyback and burn for a Printr POB token", "first tokenized agent on Printr", or composing the `printr-swap` + `printr-agent-payments` skills into one loop. Does NOT trigger for pump.fun-launched tokens.
+  Build a tokenized-agent revenue loop on a Printr POB token. Composes `printr-agent-payments` (accept user SOL/USDC for agent actions) with `printr-swap` (Jupiter buyback) and adds SPL `burn` plus a scheduled hourly cycle, all under the creator's own treasury. On Printr POB-model-1 tokens, the buyback trade itself pays the staking pool on its way to the burn — a double-effect unique to Printr's fee model. Triggers on "Printr tokenized agent", "agent revenue burn", "buyback and burn for a Printr POB token", "first tokenized agent on Printr", or when composing the `printr-swap` + `printr-agent-payments` skills into one loop.
 metadata:
   author: printr-community
   version: "1.0"
@@ -42,7 +42,7 @@ You MUST ask the user for ALL unchecked items in your very first response. Do no
 
 ## Safety Rules
 
-Rules 1–7 are **[pump.fun]** lifted from the tokenized-agents skill and apply to the payment side. Rules 8–12 are composition-specific. Rule 13 is your own Neo Trader learning, and is **[derived]** — the single most expensive lesson in this ecosystem.
+Rules 1–6 are standard Solana / payment-skill practice **[pattern]**. Rule 7 is the meta-rule that prevents spec-drift during generation **[derived]**. Rules 8–12 are composition-specific (mostly **[derived]**). Rule 13 is the single most expensive lesson in this ecosystem **[derived]**.
 
 1. **NEVER** log, print, or return private keys or secret key material.
 2. **NEVER** sign transactions on behalf of a user when the signer is a wallet adapter.
@@ -56,7 +56,7 @@ Rules 1–7 are **[pump.fun]** lifted from the tokenized-agents skill and apply 
 10. **Verify swap output before burning.** A swap that confirms on-chain may still have filled below expected due to slippage. Burn only the amount actually present in the ATA, not the quoted amount. **[pattern]**
 11. **Burn idempotency.** Record the swap signature in the DB BEFORE executing the burn. If the burn fails after the swap succeeds, the next cycle detects a non-zero agent-token balance in the hot wallet and retries the burn only (does not re-swap).
 12. **Never hot-wire the cold key.** The cold wallet's private key must never touch the server process that runs the scheduled buyback. Manual sweep (via Squads or hardware wallet) is the only legitimate way to fund the hot. **[derived]**
-13. **Never accept an authority-handoff from a third-party contract.** Authority-gated operations are one-way doors: if you transfer control of your treasury or fee routing to a protocol contract, only that protocol's support can reverse it. **[derived — Neo Trader CLAUDE.md, learned the hard way after pump.fun's authority contract permanently consumed a dev wallet's buyback authority.]**
+13. **Never accept an authority-handoff from a third-party contract.** Authority-gated operations are one-way doors: if you transfer control of your treasury or fee routing to a protocol contract, only that protocol's support can reverse it. **[derived — learned the hard way when a third-party launchpad's authority contract permanently consumed a dev wallet's buyback-configuration authority; the dev wallet could no longer change buyback settings or recover control.]**
 
 ## Composes With
 
@@ -483,8 +483,8 @@ See `references/CUSTODY_PATTERNS.md` for the four supported patterns with blast-
 
 ## When NOT to use
 
-- **pump.fun-launched tokens.** Use `@pump-fun/agent-payments-sdk` directly — their hosted authority contract handles buyback automatically and protects against treasury-key loss.
 - **Non-Solana tokens.** The code here is Solana-specific (SPL, Jupiter, Meteora). EVM equivalents require Uniswap v4 / 0x + ERC20 burn().
+- **Tokens on launchpads that provide their own hosted buyback primitives.** If your launchpad already handles auto-buyback via a hosted authority contract, use that — this kit is for platforms that don't.
 - **Pre-graduation tokens** if your narrative depends on POB stakers being paid. Pre-graduation, the Meteora DBC doesn't apply Printr's custom fee — buybacks still reduce float but don't feed the pool. See `printr-swap` bonding-curve scenario.
 - **Projects without persistent DB** in production. The invoice + burn_event state is load-bearing; serverless instance restarts must not lose it.
 - **Treasuries too small to absorb occasional slippage.** At <$20k pool liquidity and 0.1 SOL cycle size, expect ~0.5% worst-case slippage per cycle. Smaller pools need smaller cycles.

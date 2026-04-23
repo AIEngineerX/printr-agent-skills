@@ -134,7 +134,7 @@ You can migrate between patterns without changing skill code. The skill reads `T
 - **Storing the cold private key on the server "just for emergencies."** The whole point of cold is that the server cannot access it. If the server has the key, you don't have cold — you have Pattern 1 with extra steps.
 - **Using the same key for `TREASURY_RECEIVER_PUBKEY` and `TREASURY_HOT_PRIVATE_KEY`.** User funds land in the hot wallet instantly, breaking the cap. At minimum use Pattern 2; prefer Pattern 3.
 - **Committing any of these keys to git.** Even accidentally, even in a config file meant to be "example only." The keys are worth real money the moment they're created.
-- **Accepting an authority-handoff from any third-party contract.** Authority-gated operations are one-way doors. Ref: Neo Trader's CLAUDE.md, where a dev wallet permanently lost buyback-authority to pump.fun's authority contract. Only the protocol's support desk can reverse. If a protocol asks you to hand over authority, assume you lose it forever.
+- **Accepting an authority-handoff from any third-party contract.** Authority-gated operations are one-way doors. There is at least one documented case of a dev wallet permanently losing buyback-configuration authority to a third-party launchpad's authority contract — only the protocol's support desk could even theoretically reverse it. If a protocol asks you to hand over authority, assume you lose it forever.
 - **Skipping the hot-wallet cap.** The cap is the only thing bounding blast radius in Patterns 3 and 4. A cron bug + uncapped hot = entire cold drained at next cycle.
 
 ## External references

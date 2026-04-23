@@ -1,12 +1,12 @@
 # Verify Invoice On-Chain — full implementation
 
-This file exports `verifyInvoiceOnChain`, the hand-rolled equivalent of pump.fun's `validateInvoicePayment` **[pump.fun]**. The function scans the treasury wallet's recent signatures, parses each candidate transaction, and matches memo + payment + time window against the `payment_invoice` row for the given memo.
+This file exports `verifyInvoiceOnChain` — the server-side payment-verification routine. The function scans the treasury wallet's recent signatures, parses each candidate transaction, and matches memo + payment + time window against the `payment_invoice` row for the given memo.
 
 ## Design
 
 **Why scan the treasury wallet and not the user's wallet?** Because the treasury is the known fixed endpoint. The user's wallet is unknown at scan time (we hold the memo, not the payer). Pulling all transfers to the treasury gives us the payment candidates; parsing the memo instruction on the same tx proves which invoice it's settling. **[derived]**
 
-**Why not rely on the client's submitted signature?** Clients can be spoofed. Even if the client provides a `tx_sig`, the server must verify the tx exists, references the correct memo, and has the right amount/sender/recipient. Safety rule 6. **[pump.fun]**
+**Why not rely on the client's submitted signature?** Clients can be spoofed. Even if the client provides a `tx_sig`, the server must verify the tx exists, references the correct memo, and has the right amount/sender/recipient. Safety rule 6. **[pattern]**
 
 **Duplicate-pay safety.** Two independent mechanisms:
 1. The DB `UPDATE ... WHERE status='pending'` is idempotent — only the first caller flips the row (rowCount=1); all subsequent callers see rowCount=0 and must not credit. **[derived]**
