@@ -39,7 +39,10 @@ import {
   WSOL_MINT,
 } from '../src/payments/constants.js';
 
-const DEFAULT_INKED_MINT = '2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr';
+/** Known-graduated Token-2022 POB mint used as a smoke-test default so the
+ *  script prints a meaningful simulation out of the box. Any Printr POB mint
+ *  that routes on Jupiter works — pass your target mint as the second argv. */
+const EXAMPLE_MINT = '2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr';
 const DEFAULT_AMOUNT_LAMPORTS = 100_000_000n; // 0.1 SOL — matches BUYBACK_THRESHOLD default
 const SLIPPAGE_BPS = 100;
 
@@ -61,7 +64,7 @@ function parseArgs(): { amount: bigint; mint: string } {
     }
   }
 
-  const mint = rawMint ?? DEFAULT_INKED_MINT;
+  const mint = rawMint ?? EXAMPLE_MINT;
   return { amount, mint };
 }
 

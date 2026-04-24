@@ -1,24 +1,32 @@
 /**
- * verify-inked-graduation.ts
+ * verify-graduation.ts
  *
  * Read-only pre-flight for a Printr POB tokenized-agent buyback loop.
- * Confirms: (1) token is graduated to Meteora DAMM v2, (2) the DAMM v2 pool
- * has enough depth to absorb your target cycle size at your target slippage.
+ * Confirms: (1) the mint is graduated to Meteora DAMM v2, (2) the DAMM v2
+ * pool has enough depth to absorb your target cycle size at your target
+ * slippage.
  *
- * Fee-hook activation (the "pay stakers" effect) cannot be proven read-only —
- * at the end this prints the exact command to execute a 0.01 SOL probe swap
- * plus the Solscan URL pattern to inspect inner instructions for the transfer
- * into Printr's staking-pool PDA.
+ * POB fee distribution is async — LP-fee accrual + periodic distribution
+ * by Printr's SVM program, NOT a per-swap hook. It cannot be proven by
+ * reading one swap. For that check, use `scripts/verify-printr-mechanism.ts`
+ * against Printr's staking API.
  *
  * Run:
- *   npx tsx scripts/verify-inked-graduation.ts
- *   npx tsx scripts/verify-inked-graduation.ts <MINT>   # override default
+ *   npx tsx scripts/verify-graduation.ts <MINT>
+ *
+ *   # With no argv, a known-graduated Token-2022 POB mint is used as a
+ *   # smoke-test example so the script prints meaningful output out of
+ *   # the box. Replace <MINT> to probe any other Printr POB mint.
+ *   npx tsx scripts/verify-graduation.ts
  */
 
 import { getPoolState } from '../src/swap/quote.js';
 import { WSOL_MINT } from '../src/payments/constants.js';
 
-const DEFAULT_INKED_MINT = '2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr';
+/** Known-graduated Token-2022 POB mint used as a smoke-test default so the
+ *  script demonstrates a green path out of the box. Any graduated Printr
+ *  POB mint works — pass your target mint as argv to override. */
+const EXAMPLE_MINT = '2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr';
 
 const PROBE_SIZES_LAMPORTS: ReadonlyArray<{ label: string; amount: bigint }> = [
   { label: '0.01 SOL', amount: 10_000_000n },
@@ -46,7 +54,7 @@ function verdict(priceImpactPct: string): string {
 }
 
 async function main() {
-  const mint = process.argv[2] ?? DEFAULT_INKED_MINT;
+  const mint = process.argv[2] ?? EXAMPLE_MINT;
 
   console.log('');
   console.log(`Verifying graduation + pool depth for mint ${mint}`);
@@ -68,9 +76,12 @@ async function main() {
   console.log(`    Classified state    : ${graduation.state}`);
 
   if (graduation.state === 'graduated') {
-    console.log(`    → Graduated to Meteora DAMM v2. Printr POB fee hook active.`);
+    console.log(`    → Graduated to Meteora DAMM v2. Buyback cycle is eligible.`);
+    console.log(`      (POB fee distribution is checked separately — see [3].)`);
   } else if (graduation.state === 'bonding-curve') {
-    console.log(`    → Still on Meteora DBC. Fee hook INACTIVE. Do not run cron.`);
+    console.log(`    → Still on Meteora DBC (pre-graduation). Do not run the cron —`);
+    console.log(`      the LP doesn't exist yet, so buybacks can't reduce circulating`);
+    console.log(`      supply through a Jupiter route. Wait for graduation.`);
     process.exit(2);
   } else {
     console.log(`    → Unknown pool label. Printr/Meteora may have renamed labels.`);
@@ -103,36 +114,30 @@ async function main() {
     await new Promise((r) => setTimeout(r, 400));
   }
 
-  // 3. Fee-hook activation (requires a live trade — instructions only).
+  // 3. POB fee-distribution liveness — separate concern, requires Printr API.
   console.log('');
-  console.log(`[3] Fee-hook activation check — requires a real 0.01 SOL swap`);
+  console.log(`[3] POB fee-distribution liveness — separate mechanism, separate script`);
   console.log('');
-  console.log(`    To prove the POB fee hook actually fires on every trade:`);
-  console.log(`      a) From a throwaway wallet, swap 0.01 SOL → ${mint} via`);
-  console.log(`         Jupiter UI or a Phantom transaction.`);
-  console.log(`      b) Open the resulting tx on Solscan:`);
-  console.log(`           https://solscan.io/tx/<SIG>`);
-  console.log(`      c) In "Instruction Details", expand the inner instructions`);
-  console.log(`         under the Meteora DAMM v2 swap. Look for a Token Program`);
-  console.log(`         "transfer" into an account owned by Printr's program`);
-  console.log(`         (not Meteora's vault, not Jupiter's fee account).`);
-  console.log(`      d) Cross-check by querying Printr's staking API before and`);
-  console.log(`         after the swap:`);
-  console.log(`           POST https://api-preview.printr.money/v1/staking/list-positions-with-rewards`);
-  console.log(`         A non-zero growth in aggregated claimable_rewards for the`);
-  console.log(`         $INKED telecoin confirms the hook is actively routing.`);
+  console.log(`    POB model-1 fee distribution is async: Meteora DAMM v2 accrues`);
+  console.log(`    LP fees on every swap, and Printr's SVM program distributes`);
+  console.log(`    accumulated rewards to stakers on its own schedule. Nothing`);
+  console.log(`    Printr-specific happens inside an individual swap tx — every`);
+  console.log(`    POB swap on-chain looks identical to a plain Meteora DAMM v2`);
+  console.log(`    swap. There is no per-swap hook to grep for.`);
   console.log('');
-  console.log(`    If step (c) shows no Printr-owned transfer and step (d) shows`);
-  console.log(`    zero growth, the fee hook is NOT attached to this pool — do`);
-  console.log(`    not enable the cron. This is a Printr-side config issue, not`);
-  console.log(`    a bug in this kit.`);
+  console.log(`    To confirm POB distribution is live for this mint, run:`);
+  console.log(`      npx tsx scripts/verify-printr-mechanism.ts <TELECOIN_ID>`);
+  console.log('');
+  console.log(`    That script queries Printr's public API for staker positions`);
+  console.log(`    + claimable/claimed rewards and reports whether the mechanism`);
+  console.log(`    has accrued value for this telecoin. Non-zero = live.`);
 
   console.log('');
   console.log('─'.repeat(72));
   console.log('Pre-flight summary:');
-  console.log(`  graduation            : PASS (${label})`);
-  console.log(`  pool-depth probes     : see table above`);
-  console.log(`  fee-hook activation   : MANUAL (see [3])`);
+  console.log(`  graduation             : PASS (${label})`);
+  console.log(`  pool-depth probes      : see table above`);
+  console.log(`  POB fee distribution   : check separately via verify-printr-mechanism.ts`);
   console.log('');
 }
 

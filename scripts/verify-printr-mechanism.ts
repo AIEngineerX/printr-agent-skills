@@ -24,7 +24,10 @@ const PRINTR_BASE = 'https://api-preview.printr.money/v1';
 const PRINTR_PUBLIC_JWT =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhaS1pbnRlZ3JhdGlvbiJ9.PZsqfleSmSiAra8jiN3JZvDSonoawQLnvYRyPHDbtRg';
 
-const DEFAULT_INKED_TELECOIN_ID =
+/** Known-live-mechanism Printr POB telecoin_id used as a smoke-test default so
+ *  the script prints a meaningful green path out of the box. Pass any other
+ *  telecoin_id as argv to probe a different POB telecoin. */
+const EXAMPLE_TELECOIN_ID =
   '0xf1ebb9ced7f3859b8b94be7e4a630557383cb7cdc4525192929499e76313e137';
 
 const SOLANA_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
@@ -136,7 +139,7 @@ function sumAssets(list: (AssetAmountResp | undefined)[]): AssetAmountResp | nul
 }
 
 async function main() {
-  const telecoinId = process.argv[2] ?? DEFAULT_INKED_TELECOIN_ID;
+  const telecoinId = process.argv[2] ?? EXAMPLE_TELECOIN_ID;
 
   console.log('');
   console.log('Printr POB model-1 live-mechanism verification');
