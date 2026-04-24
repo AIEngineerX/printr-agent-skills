@@ -1,6 +1,14 @@
-import { Connection, Keypair, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  VersionedTransaction,
+  type SimulatedTransactionResponse,
+} from '@solana/web3.js';
 import { getAssociatedTokenAddress, getAccount } from '@solana/spl-token';
 import bs58 from 'bs58';
+
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '../payments/constants.js';
 
 export function loadHotKeypair(): Keypair {
   const secret = process.env.TREASURY_HOT_PRIVATE_KEY;
@@ -86,4 +94,80 @@ export async function verifySwapOutput(
     throw new SwapBelowMinimumError(account.amount, minOutAmount);
   }
   return account.amount;
+}
+
+/** Result of a dry-run swap simulation. Runs the tx through the RPC without
+ *  submitting — no SOL spent, no signature required. Useful to validate the
+ *  route resolves, the tx would land, and the compute-unit cost is within
+ *  budget before enabling a live buyback cron.
+ *
+ *  Note on mechanism: Printr POB model-1 fee distribution is **async LP-fee
+ *  accrual + periodic distribution** by Printr's SVM program — not a
+ *  per-swap hook visible in inner instructions. Do not use the swap
+ *  simulation to try to detect fee-hook activity; it won't show anything
+ *  distinguishable from a plain Meteora DAMM v2 swap. Verify POB liveness
+ *  via `POST /v1/staking/list-positions-with-rewards` on Printr's API
+ *  instead. See `scripts/verify-printr-mechanism.ts`. */
+export interface SimulateSwapResult {
+  ok: boolean;
+  err: unknown;
+  logs: readonly string[];
+  computeUnitsConsumed: number | null;
+  innerInstructions: SimulatedTransactionResponse['innerInstructions'];
+  /** Count of Token Program transfer/transferChecked ixs across all inner
+   *  instruction groups. Includes both classic SPL (`Tokenkeg...`) and
+   *  Token-2022 (`TokenzQdB...`) programs — many Printr POB tokens are
+   *  Token-2022. Useful for sanity-checking the swap routed at all; NOT a
+   *  proxy for fee-hook detection (see note on `SimulateSwapResult`).
+   *  Null when the RPC didn't return inner instructions in parsed form. */
+  tokenTransferCount: number | null;
+}
+
+/** Run the swap tx through the RPC's simulateTransaction without submitting.
+ *  No SOL spent, no signature required (`sigVerify: false`), fresh blockhash
+ *  injected server-side (`replaceRecentBlockhash: true`). The returned shape
+ *  mirrors `SimulatedTransactionResponse` with one added instrumentation
+ *  field (`tokenTransferCount`). */
+export async function simulateSwap(
+  connection: Connection,
+  tx: VersionedTransaction,
+): Promise<SimulateSwapResult> {
+  const result = await connection.simulateTransaction(tx, {
+    sigVerify: false,
+    replaceRecentBlockhash: true,
+    commitment: 'confirmed',
+    innerInstructions: true,
+  });
+
+  const value = result.value;
+  const inners = value.innerInstructions ?? null;
+  let tokenTransferCount: number | null = null;
+
+  if (inners) {
+    tokenTransferCount = 0;
+    for (const group of inners) {
+      for (const ix of group.instructions) {
+        const programId = 'programId' in ix ? ix.programId.toBase58() : null;
+        if (programId !== TOKEN_PROGRAM_ID && programId !== TOKEN_2022_PROGRAM_ID) continue;
+        if (
+          'parsed' in ix &&
+          typeof ix.parsed === 'object' &&
+          ix.parsed !== null &&
+          'type' in ix.parsed
+        ) {
+          const t = (ix.parsed as { type: string }).type;
+          if (t === 'transfer' || t === 'transferChecked') tokenTransferCount++;
+        }
+      }
+    }
+  }
+
+  return {
+    ok: value.err == null,
+    err: value.err,
+    logs: value.logs ?? [],
+    computeUnitsConsumed: value.unitsConsumed ?? null,
+    innerInstructions: inners,
+    tokenTransferCount,
+  };
 }
