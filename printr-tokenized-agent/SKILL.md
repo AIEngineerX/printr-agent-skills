@@ -26,6 +26,7 @@ This skill composes two sub-skills. You MUST gather prerequisites for both, plus
 
 - [ ] Agent token mint (the POB token to buy back)
 - [ ] Agent token `telecoin_id` (0x… from Printr's V1 API) — optional, only if you display pool stats
+- [ ] Agent token program ID: **classic SPL** or **Token-2022**? Check by running `getAccountInfo(mint)` and looking at the `owner` field — `TokenkegQ…` = classic SPL, `TokenzQdB…` = Token-2022. Many POB tokens graduated post-mid-2025 are Token-2022.
 - [ ] Signer source for swaps: **server-signed** is the only valid answer for automated buybacks
 - [ ] Slippage tolerance in bps (recommend 100 = 1%)
 
@@ -518,7 +519,7 @@ Queries `POST /v1/staking/list-positions-with-rewards` + `POST /v1/telecoin/buyb
 ### Wiring
 
 ```typescript
-// CycleConfig gains one optional field:
+// CycleConfig:
 export interface CycleConfig {
   pool: QueryablePool;
   connection: Connection;
@@ -527,13 +528,22 @@ export interface CycleConfig {
   thresholdLamports: bigint;
   maxPerCycleLamports: bigint;
   slippageBps: number;
+  /** Optional. Defaults to classic SPL (TokenkegQ...). Pass
+   *  `TOKEN_2022_PROGRAM_ID` from `@solana/spl-token` for Token-2022
+   *  mints — threads through to getAssociatedTokenAddress, getAccount,
+   *  and createBurnInstruction so the ATA is derived correctly and the
+   *  burn ix addresses the right program. **[Printr]** */
+  tokenProgramId?: PublicKey;
   dryRun?: boolean; // default false. When true, no submission + no DB writes.
 }
 
 // Scheduler handler reads env and threads through:
+import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+
 export async function handler(): Promise<CycleResult> {
   return runBuybackCycle({
     // ...existing config...
+    tokenProgramId: process.env.AGENT_TOKEN_IS_2022 === 'true' ? TOKEN_2022_PROGRAM_ID : undefined,
     dryRun: process.env.BUYBACK_DRY_RUN === 'true',
   });
 }

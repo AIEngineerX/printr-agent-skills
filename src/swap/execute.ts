@@ -5,10 +5,17 @@ import {
   VersionedTransaction,
   type SimulatedTransactionResponse,
 } from '@solana/web3.js';
-import { getAssociatedTokenAddress, getAccount } from '@solana/spl-token';
+import {
+  getAssociatedTokenAddress,
+  getAccount,
+  TOKEN_PROGRAM_ID as SPL_TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 import bs58 from 'bs58';
 
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '../payments/constants.js';
+import {
+  TOKEN_2022_PROGRAM_ID as TOKEN_2022_PROGRAM_ID_STR,
+  TOKEN_PROGRAM_ID as TOKEN_PROGRAM_ID_STR,
+} from '../payments/constants.js';
 
 export function loadHotKeypair(): Keypair {
   const secret = process.env.TREASURY_HOT_PRIVATE_KEY;
@@ -81,15 +88,24 @@ export class SwapBelowMinimumError extends Error {
 /** Throws SwapBelowMinimumError if the ATA didn't receive at least minOutAmount
  *  — the tx can confirm without delivering expected output if a route partially
  *  fills. Any other thrown error (RPC timeout, ATA not found, etc.) indicates
- *  the read itself failed, not that the swap was slippage-busted. */
+ *  the read itself failed, not that the swap was slippage-busted.
+ *
+ *  `tokenProgramId` defaults to classic SPL Token. Pass
+ *  `TOKEN_2022_PROGRAM_ID` from `@solana/spl-token` for Token-2022 mints —
+ *  the ATA derivation and `getAccount` decoding both use the program ID as
+ *  a seed / parsing discriminator, so classic-SPL defaults against a
+ *  Token-2022 mint return the wrong ATA address and would falsely throw
+ *  `TokenAccountNotFoundError` every cycle. **[Printr]** — many Printr POB
+ *  tokens graduated post-mid-2025 are Token-2022. */
 export async function verifySwapOutput(
   connection: Connection,
   outputMint: PublicKey,
   owner: PublicKey,
   minOutAmount: bigint,
+  tokenProgramId: PublicKey = SPL_TOKEN_PROGRAM_ID,
 ): Promise<bigint> {
-  const ata = await getAssociatedTokenAddress(outputMint, owner);
-  const account = await getAccount(connection, ata, 'confirmed');
+  const ata = await getAssociatedTokenAddress(outputMint, owner, false, tokenProgramId);
+  const account = await getAccount(connection, ata, 'confirmed', tokenProgramId);
   if (account.amount < minOutAmount) {
     throw new SwapBelowMinimumError(account.amount, minOutAmount);
   }
@@ -148,7 +164,7 @@ export async function simulateSwap(
     for (const group of inners) {
       for (const ix of group.instructions) {
         const programId = 'programId' in ix ? ix.programId.toBase58() : null;
-        if (programId !== TOKEN_PROGRAM_ID && programId !== TOKEN_2022_PROGRAM_ID) continue;
+        if (programId !== TOKEN_PROGRAM_ID_STR && programId !== TOKEN_2022_PROGRAM_ID_STR) continue;
         if (
           'parsed' in ix &&
           typeof ix.parsed === 'object' &&

@@ -3,6 +3,7 @@ import {
   createBurnInstruction,
   getAccount,
   getAssociatedTokenAddress,
+  TOKEN_PROGRAM_ID,
   TokenAccountNotFoundError,
 } from '@solana/spl-token';
 import {
@@ -25,16 +26,32 @@ export interface CycleConfig {
   thresholdLamports: bigint;
   maxPerCycleLamports: bigint;
   slippageBps: number;
+  /** SPL Token program ID that owns the agent token mint. Defaults to
+   *  classic SPL (`TokenkegQ...`). Pass `TOKEN_2022_PROGRAM_ID` from
+   *  `@solana/spl-token` for Token-2022 mints — the ATA PDA derivation
+   *  and `getAccount`/`createBurnInstruction` decoding all use the program
+   *  ID as a seed or dispatch key. Omitting it on a Token-2022 mint
+   *  produces the wrong ATA address (TokenAccountNotFoundError every
+   *  cycle) and a burn ix addressed to the wrong program (on-chain
+   *  failure). **[Printr]** Many POB tokens graduated post-mid-2025 are
+   *  Token-2022. */
+  tokenProgramId?: PublicKey;
 }
 
 export async function findRecoveryCycle(
   cfg: CycleConfig,
 ): Promise<{ id: number; amountToBurn: bigint } | null> {
-  const ata = await getAssociatedTokenAddress(cfg.agentTokenMint, cfg.hotKeypair.publicKey);
+  const programId = cfg.tokenProgramId ?? TOKEN_PROGRAM_ID;
+  const ata = await getAssociatedTokenAddress(
+    cfg.agentTokenMint,
+    cfg.hotKeypair.publicKey,
+    false,
+    programId,
+  );
 
   let ataBalance: bigint;
   try {
-    const acct = await getAccount(cfg.connection, ata, 'confirmed');
+    const acct = await getAccount(cfg.connection, ata, 'confirmed', programId);
     ataBalance = acct.amount;
   } catch (e) {
     if (e instanceof TokenAccountNotFoundError) return null;
@@ -113,6 +130,7 @@ export async function startCycle(cfg: CycleConfig): Promise<StartCycleResult> {
       cfg.agentTokenMint,
       cfg.hotKeypair.publicKey,
       BigInt(quote.otherAmountThreshold),
+      cfg.tokenProgramId,
     );
   } catch (e) {
     if (e instanceof SwapBelowMinimumError) {
@@ -143,13 +161,26 @@ export async function burnAgentTokens(
   cycleId: number,
   amountToBurn: bigint,
 ): Promise<string> {
-  const ata = await getAssociatedTokenAddress(cfg.agentTokenMint, cfg.hotKeypair.publicKey);
+  const programId = cfg.tokenProgramId ?? TOKEN_PROGRAM_ID;
+  const ata = await getAssociatedTokenAddress(
+    cfg.agentTokenMint,
+    cfg.hotKeypair.publicKey,
+    false,
+    programId,
+  );
 
   const tx = new Transaction();
   tx.add(
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 }),
     ComputeBudgetProgram.setComputeUnitLimit({ units: 40_000 }),
-    createBurnInstruction(ata, cfg.agentTokenMint, cfg.hotKeypair.publicKey, amountToBurn),
+    createBurnInstruction(
+      ata,
+      cfg.agentTokenMint,
+      cfg.hotKeypair.publicKey,
+      amountToBurn,
+      [],
+      programId,
+    ),
   );
 
   const { blockhash, lastValidBlockHeight } = await cfg.connection.getLatestBlockhash('confirmed');

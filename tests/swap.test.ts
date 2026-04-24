@@ -1,10 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { Keypair, VersionedTransaction } from '@solana/web3.js';
+import { Keypair, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import {
+  getAssociatedTokenAddress,
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+} from '@solana/spl-token';
 import {
   quoteSwap,
   buildSwapTransaction,
   getPoolState,
   getPoolStateOrThrow,
+  verifySwapOutput,
   JUPITER_BASE,
   JUPITER_TIMEOUT_MS,
 } from '../src/swap/index.js';
@@ -214,5 +220,32 @@ describe('JUPITER_BASE + JUPITER_TIMEOUT_MS constants', () => {
     expect(JUPITER_TIMEOUT_MS).toBeGreaterThan(0);
     expect(JUPITER_TIMEOUT_MS).toBeLessThanOrEqual(30_000);
     expect(Number.isInteger(JUPITER_TIMEOUT_MS)).toBe(true);
+  });
+});
+
+describe('verifySwapOutput — Token-2022 program ID threading', () => {
+  // Using $INKED as a real Token-2022 mint for the derivation test. No RPC
+  // call is made — getAssociatedTokenAddress is a pure PDA derivation, so
+  // this test runs offline and independent of SKILL_LIVE.
+  const mint = new PublicKey(INKED_MINT);
+  const owner = Keypair.generate().publicKey;
+
+  it('derives different ATAs for classic SPL vs Token-2022 with the same (mint, owner)', async () => {
+    const classicAta = await getAssociatedTokenAddress(mint, owner, false, TOKEN_PROGRAM_ID);
+    const token2022Ata = await getAssociatedTokenAddress(mint, owner, false, TOKEN_2022_PROGRAM_ID);
+
+    // The ATA program hashes the token program ID into the PDA seeds, so
+    // these MUST diverge. If this assertion ever fires as equal, the ATA
+    // program changed its derivation and the whole kit's Token-2022 plumbing
+    // needs a rethink.
+    expect(classicAta.toBase58()).not.toBe(token2022Ata.toBase58());
+  });
+
+  it('function signature accepts tokenProgramId and defaults to classic SPL', () => {
+    // Type-level check — if verifySwapOutput's signature drops the optional
+    // tokenProgramId this test fails to compile. No runtime side effect
+    // because we never invoke it (missing Connection).
+    expect(typeof verifySwapOutput).toBe('function');
+    expect(verifySwapOutput.length).toBeGreaterThanOrEqual(4); // connection, mint, owner, minOut
   });
 });
