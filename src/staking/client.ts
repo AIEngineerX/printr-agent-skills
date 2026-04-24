@@ -173,15 +173,32 @@ export async function claimRewards(
 
   // Snapshot rewards-pre-claim so we can report what the claim delivered.
   // The list endpoint filters by telecoin_ids, not position_ids — pull by
-  // owner and filter client-side.
+  // owner and filter client-side. Paginate until every requested positionId
+  // is found; otherwise report the gap instead of silently undercounting.
   const ownerCaip = solanaCaip10(args.owner.publicKey);
-  const listResp = await listPositionsWithRewards(
-    { owner: args.owner.publicKey, limit: 100 },
-    options,
-  );
-  const matchedPositions = listResp.positions.filter((p) =>
-    args.positionIds.includes(p.info.position),
-  );
+  const wanted = new Set(args.positionIds);
+  const matchedPositions: StakePositionWithRewards[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await listPositionsWithRewards(
+      { owner: args.owner.publicKey, cursor, limit: 100 },
+      options,
+    );
+    for (const p of page.positions) {
+      if (wanted.has(p.info.position)) {
+        matchedPositions.push(p);
+        wanted.delete(p.info.position);
+      }
+    }
+    if (wanted.size === 0) break;
+    cursor = page.next_cursor;
+  } while (cursor);
+
+  if (wanted.size > 0) {
+    throw new Error(
+      `claimRewards: ${wanted.size} positionId(s) not found in owner's list-positions-with-rewards: ${Array.from(wanted).join(', ')}`,
+    );
+  }
 
   // Ask Printr for the unsigned claim tx.
   const claimResp = await printrPost<ClaimResponse>(
