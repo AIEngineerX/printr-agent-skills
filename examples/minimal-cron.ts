@@ -11,7 +11,7 @@
 //   AGENT_TOKEN_MINT            — the POB token mint to buy back
 //
 // Env vars optional (defaults shown):
-//   AGENT_TOKEN_PROGRAM=spl     — or "2022" for Token-2022 mints (INKED etc.)
+//   AGENT_TOKEN_PROGRAM=spl     — or "2022" for Token-2022 mints
 //   BUYBACK_THRESHOLD_LAMPORTS=100000000
 //   BUYBACK_MAX_LAMPORTS=1000000000
 //   BUYBACK_SLIPPAGE_BPS=100

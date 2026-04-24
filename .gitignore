@@ -26,3 +26,10 @@ build/
 scratch/
 notes.md
 TODO.local.md
+
+# Per-developer agent instruction files (machine-local, never shared)
+CLAUDE.md
+GEMINI.md
+AGENTS.md
+.claude/
+.cursor/
