@@ -105,7 +105,10 @@ function makeCycleConn(opts: {
   confirmErr?: unknown;
 }) {
   const sent: Uint8Array[] = [];
-  const latestBlockhash = { blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 1_000_000 };
+  const latestBlockhash = {
+    blockhash: '11111111111111111111111111111111',
+    lastValidBlockHeight: 1_000_000,
+  };
   let ataBuffer: Buffer | null = null;
   if (opts.ataAmount !== null) {
     ataBuffer = encodeAtaBuffer(opts.mint, opts.owner, opts.ataAmount);
@@ -387,9 +390,7 @@ describe('runBuybackCycle — autoClaim threading', () => {
       mint,
     });
 
-    vi.mocked(claimAllAboveThreshold).mockRejectedValue(
-      new Error('Printr claim-rewards 503'),
-    );
+    vi.mocked(claimAllAboveThreshold).mockRejectedValue(new Error('Printr claim-rewards 503'));
 
     const result = await runBuybackCycle(
       baseCfg({

@@ -171,16 +171,16 @@ No public adopters listed yet. PR yourself in after running a production cycle �
 
 `@solana/web3.js` and `@solana/spl-token` use Node APIs (`node:buffer`, dynamic `require`) — the kit only runs on Node-compatible runtimes. As of 0.2.0 the kit publishes a compiled `dist/`, so bundler TS-resolution is no longer an adopter concern.
 
-| Host / runtime                                 | Status                      | Notes                                                                                                                |
-| ---------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Netlify Functions** (Node 22.x)              | ✅ **Production-verified**   | Used by the 2026-04-24 live cycle (see "Production track record" above). Import from `@printr/agent-skills/tokenized-agent` into a Scheduled Function handler. |
-| Vercel Cron (Node)                             | ✅ Expected to work          | `vercel.json` crons; validate `CRON_SECRET` header                                                                   |
-| Railway / Fly / plain Node                     | ✅ Expected to work          | Standard Node 18+ runtime                                                                                            |
-| AWS Lambda (Node)                              | ✅ Expected to work          | Node 18+ runtime, import `from '@printr/agent-skills/tokenized-agent'`                                               |
-| GitHub Actions (scheduled)                     | ✅ Expected to work          | `ubuntu-latest` + `actions/setup-node@v4`                                                                            |
-| **Netlify Edge Functions** (Deno)              | ❌ **Not supported**         | Deno rejects `Dynamic require of "node:buffer"` inside `@solana/web3.js`. Move the cycle to a regular Netlify Function (Node runtime) — the Netlify Functions row above is the production-verified path. |
-| Cloudflare Workers (default)                   | ⚠ Partial                   | Default V8 isolate has the same issues as Deno. `nodejs_compat` flag + a bundler that provides `node:buffer` polyfill may work — not verified live yet |
-| Vercel Edge Runtime                            | ❌ Not supported             | Same Node-API issue as Netlify Edge                                                                                  |
+| Host / runtime                    | Status                     | Notes                                                                                                                                                                                                    |
+| --------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Netlify Functions** (Node 22.x) | ✅ **Production-verified** | Used by the 2026-04-24 live cycle (see "Production track record" above). Import from `@printr/agent-skills/tokenized-agent` into a Scheduled Function handler.                                           |
+| Vercel Cron (Node)                | ✅ Expected to work        | `vercel.json` crons; validate `CRON_SECRET` header                                                                                                                                                       |
+| Railway / Fly / plain Node        | ✅ Expected to work        | Standard Node 18+ runtime                                                                                                                                                                                |
+| AWS Lambda (Node)                 | ✅ Expected to work        | Node 18+ runtime, import `from '@printr/agent-skills/tokenized-agent'`                                                                                                                                   |
+| GitHub Actions (scheduled)        | ✅ Expected to work        | `ubuntu-latest` + `actions/setup-node@v4`                                                                                                                                                                |
+| **Netlify Edge Functions** (Deno) | ❌ **Not supported**       | Deno rejects `Dynamic require of "node:buffer"` inside `@solana/web3.js`. Move the cycle to a regular Netlify Function (Node runtime) — the Netlify Functions row above is the production-verified path. |
+| Cloudflare Workers (default)      | ⚠ Partial                  | Default V8 isolate has the same issues as Deno. `nodejs_compat` flag + a bundler that provides `node:buffer` polyfill may work — not verified live yet                                                   |
+| Vercel Edge Runtime               | ❌ Not supported           | Same Node-API issue as Netlify Edge                                                                                                                                                                      |
 
 ### A note on inlining vs importing
 

@@ -1,6 +1,6 @@
 import { Transaction, ComputeBudgetProgram } from '@solana/web3.js';
 import { createBurnInstruction, getAccount, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, TokenAccountNotFoundError, } from '@solana/spl-token';
-import { quoteSwap, buildSwapTransaction, executeServerSwap, verifySwapOutput, SwapBelowMinimumError, } from '../swap/index.js';
+import { quoteSwap, buildSwapTransaction, executeServerSwap, verifySwapOutput, SwapBelowMinimumError, OnChainConfirmError, } from '../swap/index.js';
 import { claimAllAboveThreshold } from '../staking/index.js';
 import { WSOL_MINT } from '../payments/constants.js';
 export const FEE_RESERVE_LAMPORTS = 10000000n; // 0.01 SOL held back for tx fees
@@ -109,7 +109,7 @@ export async function burnAgentTokens(cfg, cycleId, amountToBurn) {
     });
     const conf = await cfg.connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
     if (conf.value.err) {
-        throw new Error(`burn failed on-chain: ${JSON.stringify(conf.value.err)}`);
+        throw new OnChainConfirmError('burn', conf.value.err);
     }
     await cfg.pool.query(`UPDATE burn_event
         SET agent_token_burned = $1,

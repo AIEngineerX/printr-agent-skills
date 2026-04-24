@@ -1,5 +1,14 @@
 import type { Connection, Keypair } from '@solana/web3.js';
 import { PublicKey } from '@solana/web3.js';
+/** Thrown when Printr's HTTP API returns a non-2xx response. Adopters can
+ *  catch this specifically to retry, back off, or route to a status-page
+ *  alert rather than treating every failure as a bug. */
+export declare class PrintrApiError extends Error {
+    readonly status: number;
+    readonly path: string;
+    readonly body: string;
+    constructor(path: string, status: number, body: string);
+}
 export interface PrintrClientOptions {
     apiBase?: string;
     apiKey?: string;

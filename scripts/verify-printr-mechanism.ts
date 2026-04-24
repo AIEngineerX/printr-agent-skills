@@ -27,8 +27,7 @@ const PRINTR_PUBLIC_JWT =
 /** Known-live-mechanism Printr POB telecoin_id used as a smoke-test default so
  *  the script prints a meaningful green path out of the box. Pass any other
  *  telecoin_id as argv to probe a different POB telecoin. */
-const EXAMPLE_TELECOIN_ID =
-  '0xf1ebb9ced7f3859b8b94be7e4a630557383cb7cdc4525192929499e76313e137';
+const EXAMPLE_TELECOIN_ID = '0xf1ebb9ced7f3859b8b94be7e4a630557383cb7cdc4525192929499e76313e137';
 
 const SOLANA_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
@@ -148,23 +147,31 @@ async function main() {
   });
 
   const count = positions.positions.length;
-  console.log(`      positions returned           : ${count}${
-    positions.next_cursor ? ' (more exist — next_cursor present)' : ''
-  }`);
-
-  const totalClaimableQuote = sumAssets(
-    positions.positions.map((p) => p.claimable_quote_rewards),
+  console.log(
+    `      positions returned           : ${count}${
+      positions.next_cursor ? ' (more exist — next_cursor present)' : ''
+    }`,
   );
+
+  const totalClaimableQuote = sumAssets(positions.positions.map((p) => p.claimable_quote_rewards));
   const totalClaimedQuote = sumAssets(positions.positions.map((p) => p.claimed_quote_rewards));
   const totalClaimableTele = sumAssets(
     positions.positions.map((p) => p.claimable_telecoin_rewards),
   );
   const totalClaimedTele = sumAssets(positions.positions.map((p) => p.claimed_telecoin_rewards));
 
-  console.log(`      Σ claimable quote (SOL)      : ${atomicToHuman(totalClaimableQuote ?? undefined)}`);
-  console.log(`      Σ claimed quote (SOL)        : ${atomicToHuman(totalClaimedQuote ?? undefined)}`);
-  console.log(`      Σ claimable telecoin         : ${atomicToHuman(totalClaimableTele ?? undefined)}`);
-  console.log(`      Σ claimed telecoin           : ${atomicToHuman(totalClaimedTele ?? undefined)}`);
+  console.log(
+    `      Σ claimable quote (SOL)      : ${atomicToHuman(totalClaimableQuote ?? undefined)}`,
+  );
+  console.log(
+    `      Σ claimed quote (SOL)        : ${atomicToHuman(totalClaimedQuote ?? undefined)}`,
+  );
+  console.log(
+    `      Σ claimable telecoin         : ${atomicToHuman(totalClaimableTele ?? undefined)}`,
+  );
+  console.log(
+    `      Σ claimed telecoin           : ${atomicToHuman(totalClaimedTele ?? undefined)}`,
+  );
 
   if (count > 0) {
     const sample = positions.positions[0];

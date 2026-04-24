@@ -102,15 +102,15 @@ import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 const cycleCfg: CycleConfig = {
   pool,
   connection,
-  hotKeypair,                                   // also owns the stake positions
+  hotKeypair, // also owns the stake positions
   agentTokenMint: new PublicKey('…'),
   tokenProgramId: TOKEN_2022_PROGRAM_ID,
   thresholdLamports: 100_000_000n,
   maxPerCycleLamports: 1_000_000_000n,
   slippageBps: 100,
   autoClaim: {
-    telecoinIds: ['0x…'],                       // optional — filter to a specific telecoin
-    minClaimableLamports: 10_000_000n,          // 0.01 SOL floor, avoid dust claims + tx fee waste
+    telecoinIds: ['0x…'], // optional — filter to a specific telecoin
+    minClaimableLamports: 10_000_000n, // 0.01 SOL floor, avoid dust claims + tx fee waste
     // printrOptions?: { apiKey, apiBase, timeoutMs }
   },
 };
@@ -538,13 +538,13 @@ export async function runBuybackCycle(cfg?: { dryRun?: boolean }): Promise<Cycle
 
 ## Maturity status
 
-| Component | Status |
-|---|---|
-| `runBuybackCycle` — swap + burn cycle | **Production-verified** — first live cycle on a graduated Token-2022 POB telecoin 2026-04-24. Solscan: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E) · [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz) |
-| `CycleConfig.tokenProgramId` — Token-2022 support | **Production-verified** — used by the first live cycle |
-| Recovery mode (swap-succeeds-burn-fails) | Unit-tested, not triggered in production yet |
-| `simulateSwap` dry-run | **Live-tested** on mainnet against a graduated Token-2022 POB telecoin pre-deployment |
-| `autoClaim` phase (this skill, new in 0.2.0) | **Preview** — code complete, 106 tests pass, NOT yet run live. Blast-radius-widening (creator key on server); read §Funding sources carefully before enabling |
+| Component                                         | Status                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runBuybackCycle` — swap + burn cycle             | **Production-verified** — first live cycle on a graduated Token-2022 POB telecoin 2026-04-24. Solscan: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E) · [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz) |
+| `CycleConfig.tokenProgramId` — Token-2022 support | **Production-verified** — used by the first live cycle                                                                                                                                                                                                                                                                                                |
+| Recovery mode (swap-succeeds-burn-fails)          | Unit-tested, not triggered in production yet                                                                                                                                                                                                                                                                                                          |
+| `simulateSwap` dry-run                            | **Live-tested** on mainnet against a graduated Token-2022 POB telecoin pre-deployment                                                                                                                                                                                                                                                                 |
+| `autoClaim` phase (this skill, new in 0.2.0)      | **Preview** — code complete, 106 tests pass, NOT yet run live. Blast-radius-widening (creator key on server); read §Funding sources carefully before enabling                                                                                                                                                                                         |
 
 ## How POB Model-1 Fee Distribution Actually Works
 
@@ -565,9 +565,11 @@ POB Model-1 does **not** emit a per-swap fee-hook transfer. The mechanism is:
 - Every POB model-1 swap on-chain looks identical to a plain Meteora DAMM v2 swap. There is no extra transfer to look for. **[Printr]**
 
 **Canonical mechanism check** — `scripts/verify-printr-mechanism.ts` in this kit:
+
 ```bash
 npx tsx scripts/verify-printr-mechanism.ts <TELECOIN_ID>
 ```
+
 Queries `POST /v1/staking/list-positions-with-rewards` + `POST /v1/telecoin/buyback-burn-detail` and reports aggregated claimable/claimed rewards. Non-zero = mechanism is live for this telecoin.
 
 ## Dry-Run Mode

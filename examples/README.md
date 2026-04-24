@@ -22,12 +22,12 @@ Output is a `CycleResult` serialized as JSON — inspect it for `action`, tx sig
 
 ## Wiring this into your scheduler
 
-| Host | How |
-|---|---|
-| **Netlify Functions** (Node) | Drop into `netlify/functions/buyback.ts`; schedule via `netlify.toml` |
-| **Vercel Cron** (Node) | Mount at `/api/admin/buyback/route.ts`; schedule in `vercel.json` |
-| **Railway / Fly / VPS** | Wrap with `node-cron` or systemd timer |
-| **GitHub Actions** | Workflow on `schedule:`, curl the endpoint with a secret |
+| Host                                  | How                                                                                                                                |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Netlify Functions** (Node)          | Drop into `netlify/functions/buyback.ts`; schedule via `netlify.toml`                                                              |
+| **Vercel Cron** (Node)                | Mount at `/api/admin/buyback/route.ts`; schedule in `vercel.json`                                                                  |
+| **Railway / Fly / VPS**               | Wrap with `node-cron` or systemd timer                                                                                             |
+| **GitHub Actions**                    | Workflow on `schedule:`, curl the endpoint with a secret                                                                           |
 | **Netlify Edge / Cloudflare Workers** | Currently not supported — Deno/Edge runtimes reject `node:buffer` requires in the Solana stack. See README §Runtime compatibility. |
 
 ## Adding auto-claim

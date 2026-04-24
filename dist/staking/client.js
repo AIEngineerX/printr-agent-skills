@@ -8,6 +8,22 @@
 //   POST /v1/staking/list-positions-with-rewards  — read claimable rewards
 //   POST /v1/staking/claim-rewards                — get unsigned claim tx
 import { VersionedTransaction, TransactionMessage, PublicKey } from '@solana/web3.js';
+import { OnChainConfirmError } from '../swap/index.js';
+/** Thrown when Printr's HTTP API returns a non-2xx response. Adopters can
+ *  catch this specifically to retry, back off, or route to a status-page
+ *  alert rather than treating every failure as a bug. */
+export class PrintrApiError extends Error {
+    status;
+    path;
+    body;
+    constructor(path, status, body) {
+        super(`Printr ${path} failed: ${status} ${body}`);
+        this.name = 'PrintrApiError';
+        this.path = path;
+        this.status = status;
+        this.body = body;
+    }
+}
 const PUBLIC_PRINTR_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhaS1pbnRlZ3JhdGlvbiJ9.PZsqfleSmSiAra8jiN3JZvDSonoawQLnvYRyPHDbtRg';
 const DEFAULT_BASE = 'https://api-preview.printr.money';
 const SOLANA_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
@@ -30,7 +46,7 @@ async function printrPost(path, body, options = {}) {
     });
     const text = await res.text();
     if (!res.ok) {
-        throw new Error(`Printr ${path} failed: ${res.status} ${text.slice(0, 400)}`);
+        throw new PrintrApiError(path, res.status, text.slice(0, 400));
     }
     return JSON.parse(text);
 }
@@ -117,7 +133,7 @@ export async function claimRewards(args, options) {
     });
     const conf = await args.connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
     if (conf.value.err) {
-        throw new Error(`claim failed on-chain: ${JSON.stringify(conf.value.err)}`);
+        throw new OnChainConfirmError('claim', conf.value.err);
     }
     const perPosition = matchedPositions.map((p) => ({
         position: p.info.position,

@@ -65,7 +65,7 @@ export async function executeServerSwap(
     'confirmed',
   );
   if (conf.value.err) {
-    throw new Error(`swap failed on-chain: ${JSON.stringify(conf.value.err)}`);
+    throw new OnChainConfirmError('swap', conf.value.err);
   }
   return sig;
 }
@@ -82,6 +82,20 @@ export class SwapBelowMinimumError extends Error {
     this.name = 'SwapBelowMinimumError';
     this.actual = actual;
     this.minimum = minimum;
+  }
+}
+
+/** Thrown when a tx landed but the RPC reports a non-null `meta.err`. The
+ *  `operation` field identifies which primitive failed ('swap' / 'burn' /
+ *  'claim') so adopters can route by call-site. */
+export class OnChainConfirmError extends Error {
+  readonly operation: string;
+  readonly chainError: unknown;
+  constructor(operation: string, chainError: unknown) {
+    super(`${operation} failed on-chain: ${JSON.stringify(chainError)}`);
+    this.name = 'OnChainConfirmError';
+    this.operation = operation;
+    this.chainError = chainError;
   }
 }
 

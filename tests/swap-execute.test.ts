@@ -147,8 +147,11 @@ describe('executeServerSwap', () => {
     const kp = Keypair.generate();
     const tx = buildEmptyV0Tx(kp.publicKey);
 
-    let confirmedWith: { signature: string; blockhash: string; lastValidBlockHeight: number } | null =
-      null;
+    let confirmedWith: {
+      signature: string;
+      blockhash: string;
+      lastValidBlockHeight: number;
+    } | null = null;
     let sentRaw: Uint8Array | null = null;
     const conn = {
       async sendRawTransaction(raw: Uint8Array) {

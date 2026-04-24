@@ -11,6 +11,14 @@ export declare class SwapBelowMinimumError extends Error {
     readonly minimum: bigint;
     constructor(actual: bigint, minimum: bigint);
 }
+/** Thrown when a tx landed but the RPC reports a non-null `meta.err`. The
+ *  `operation` field identifies which primitive failed ('swap' / 'burn' /
+ *  'claim') so adopters can route by call-site. */
+export declare class OnChainConfirmError extends Error {
+    readonly operation: string;
+    readonly chainError: unknown;
+    constructor(operation: string, chainError: unknown);
+}
 /** Throws SwapBelowMinimumError if the ATA didn't receive at least
  *  minOutAmount — a tx can confirm without delivering expected output on a
  *  partial-fill route. Any other thrown error (RPC timeout, ATA not found)

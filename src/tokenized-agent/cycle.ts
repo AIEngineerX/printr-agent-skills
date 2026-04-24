@@ -12,6 +12,7 @@ import {
   executeServerSwap,
   verifySwapOutput,
   SwapBelowMinimumError,
+  OnChainConfirmError,
 } from '../swap/index.js';
 import { claimAllAboveThreshold, type PrintrClientOptions } from '../staking/index.js';
 import { WSOL_MINT } from '../payments/constants.js';
@@ -236,7 +237,7 @@ export async function burnAgentTokens(
     'confirmed',
   );
   if (conf.value.err) {
-    throw new Error(`burn failed on-chain: ${JSON.stringify(conf.value.err)}`);
+    throw new OnChainConfirmError('burn', conf.value.err);
   }
 
   await cfg.pool.query(

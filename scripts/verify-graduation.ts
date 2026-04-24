@@ -92,7 +92,9 @@ async function main() {
       const outAmount = quote.outAmount;
       const impact = fmtPct(quote.priceImpactPct);
       const v = verdict(quote.priceImpactPct);
-      console.log(`    ${probe.label.padEnd(10)} ${outAmount.padEnd(20)} ${impact.padEnd(14)} ${v}`);
+      console.log(
+        `    ${probe.label.padEnd(10)} ${outAmount.padEnd(20)} ${impact.padEnd(14)} ${v}`,
+      );
     } catch (e) {
       console.log(
         `    ${probe.label.padEnd(10)} FAILED: ${e instanceof Error ? e.message : String(e)}`,

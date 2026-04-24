@@ -33,11 +33,7 @@
 
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { quoteSwap, buildSwapTransaction, simulateSwap } from '../src/swap/index.js';
-import {
-  TOKEN_2022_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-  WSOL_MINT,
-} from '../src/payments/constants.js';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, WSOL_MINT } from '../src/payments/constants.js';
 
 /** Known-graduated Token-2022 POB mint used as a smoke-test default so the
  *  script prints a meaningful simulation out of the box. Any Printr POB mint
@@ -170,7 +166,7 @@ async function main() {
     console.log('  network-congestion + blockhash-expiry risks of any real tx).');
   } else {
     console.log('  SIMULATION FAILED — program error during simulation. Inspect logs');
-    console.log("  below. Do NOT enable live cycles until the root cause is understood.");
+    console.log('  below. Do NOT enable live cycles until the root cause is understood.');
   }
   console.log('');
   console.log('  For POB fee-distribution verification, see');

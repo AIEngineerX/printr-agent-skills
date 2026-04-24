@@ -10,6 +10,23 @@
 
 import type { Connection, Keypair } from '@solana/web3.js';
 import { VersionedTransaction, TransactionMessage, PublicKey } from '@solana/web3.js';
+import { OnChainConfirmError } from '../swap/index.js';
+
+/** Thrown when Printr's HTTP API returns a non-2xx response. Adopters can
+ *  catch this specifically to retry, back off, or route to a status-page
+ *  alert rather than treating every failure as a bug. */
+export class PrintrApiError extends Error {
+  readonly status: number;
+  readonly path: string;
+  readonly body: string;
+  constructor(path: string, status: number, body: string) {
+    super(`Printr ${path} failed: ${status} ${body}`);
+    this.name = 'PrintrApiError';
+    this.path = path;
+    this.status = status;
+    this.body = body;
+  }
+}
 
 const PUBLIC_PRINTR_JWT =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhaS1pbnRlZ3JhdGlvbiJ9.PZsqfleSmSiAra8jiN3JZvDSonoawQLnvYRyPHDbtRg';
@@ -84,7 +101,7 @@ async function printrPost<T>(
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Printr ${path} failed: ${res.status} ${text.slice(0, 400)}`);
+    throw new PrintrApiError(path, res.status, text.slice(0, 400));
   }
   return JSON.parse(text) as T;
 }
@@ -220,8 +237,7 @@ export async function claimRewards(
     data: Buffer.from(ix.data, 'base64'),
   }));
 
-  const { blockhash, lastValidBlockHeight } =
-    await args.connection.getLatestBlockhash('confirmed');
+  const { blockhash, lastValidBlockHeight } = await args.connection.getLatestBlockhash('confirmed');
 
   const messageV0 = new TransactionMessage({
     payerKey: args.owner.publicKey,
@@ -242,7 +258,7 @@ export async function claimRewards(
     'confirmed',
   );
   if (conf.value.err) {
-    throw new Error(`claim failed on-chain: ${JSON.stringify(conf.value.err)}`);
+    throw new OnChainConfirmError('claim', conf.value.err);
   }
 
   const perPosition = matchedPositions.map((p) => ({
@@ -251,10 +267,7 @@ export async function claimRewards(
     claimedTelecoinAtomic: BigInt(p.claimable_telecoin_rewards?.atomic ?? '0'),
   }));
 
-  const totalClaimedLamports = perPosition.reduce(
-    (acc, p) => acc + p.claimedQuoteLamports,
-    0n,
-  );
+  const totalClaimedLamports = perPosition.reduce((acc, p) => acc + p.claimedQuoteLamports, 0n);
   const totalClaimedTelecoinAtomic = perPosition.reduce(
     (acc, p) => acc + p.claimedTelecoinAtomic,
     0n,

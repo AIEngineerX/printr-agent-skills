@@ -106,8 +106,16 @@ describe('claimRewards — happy path against mocked Printr + real tx assembly',
     fetchMock.mockResolvedValueOnce(
       httpResponse({
         positions: [
-          fakePosition({ position: POS_1, claimableQuoteLamports: '142116750', claimableTelecoinAtomic: '5000000' }),
-          fakePosition({ position: POS_2, claimableQuoteLamports: '87000000', claimableTelecoinAtomic: '2000000' }),
+          fakePosition({
+            position: POS_1,
+            claimableQuoteLamports: '142116750',
+            claimableTelecoinAtomic: '5000000',
+          }),
+          fakePosition({
+            position: POS_2,
+            claimableQuoteLamports: '87000000',
+            claimableTelecoinAtomic: '2000000',
+          }),
         ],
       }),
     );
@@ -166,14 +174,14 @@ describe('claimRewards — happy path against mocked Printr + real tx assembly',
   it('paginates the list call until every requested positionId is matched', async () => {
     // Owner has 101 positions total. POS_3 is on page 2. Before the fix,
     // matchedPositions silently dropped POS_3 and undercounted the report.
-    const page1 = Array.from({ length: 100 }, (_, i) => fakePosition({
-      position: 'pos-filler-' + i.toString().padStart(40, '0'),
-      claimableQuoteLamports: '1',
-    }));
-    page1[0] = fakePosition({ position: POS_1, claimableQuoteLamports: '100' });
-    fetchMock.mockResolvedValueOnce(
-      httpResponse({ positions: page1, next_cursor: 'PAGE_2' }),
+    const page1 = Array.from({ length: 100 }, (_, i) =>
+      fakePosition({
+        position: 'pos-filler-' + i.toString().padStart(40, '0'),
+        claimableQuoteLamports: '1',
+      }),
     );
+    page1[0] = fakePosition({ position: POS_1, claimableQuoteLamports: '100' });
+    fetchMock.mockResolvedValueOnce(httpResponse({ positions: page1, next_cursor: 'PAGE_2' }));
     fetchMock.mockResolvedValueOnce(
       httpResponse({
         positions: [fakePosition({ position: POS_3, claimableQuoteLamports: '9999' })],

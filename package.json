@@ -28,7 +28,14 @@
       "default": "./dist/tokenized-agent/index.js"
     }
   },
-  "files": ["dist", "src", "printr-*/", "README.md", "CHANGELOG.md", "LICENSE"],
+  "files": [
+    "dist",
+    "src",
+    "printr-*/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "prepare": "npm run build",

@@ -22,10 +22,7 @@
 // stateless — the cycle picks up from burn_event for recovery.
 
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
-import {
-  TOKEN_2022_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-} from '@solana/spl-token';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import bs58 from 'bs58';
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 

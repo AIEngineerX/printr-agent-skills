@@ -234,7 +234,13 @@ describe('findRecoveryCycle — real ATA buffer paths', () => {
     const conn = {
       async getAccountInfo(pubkey: PublicKey) {
         if (pubkey.toBase58() === ata.toBase58()) {
-          return { executable: false, lamports: 2_039_280, owner: SPL_PROGRAM, rentEpoch: 0, data: buf };
+          return {
+            executable: false,
+            lamports: 2_039_280,
+            owner: SPL_PROGRAM,
+            rentEpoch: 0,
+            data: buf,
+          };
         }
         return null;
       },
@@ -262,7 +268,13 @@ describe('findRecoveryCycle — real ATA buffer paths', () => {
     const conn = {
       async getAccountInfo(pubkey: PublicKey) {
         if (pubkey.toBase58() === ata.toBase58()) {
-          return { executable: false, lamports: 2_039_280, owner: SPL_PROGRAM, rentEpoch: 0, data: buf };
+          return {
+            executable: false,
+            lamports: 2_039_280,
+            owner: SPL_PROGRAM,
+            rentEpoch: 0,
+            data: buf,
+          };
         }
         return null;
       },

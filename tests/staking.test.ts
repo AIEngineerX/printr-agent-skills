@@ -84,10 +84,7 @@ describe('listPositionsWithRewards', () => {
 
   it('uses partner API key when supplied via options', async () => {
     fetchMock.mockResolvedValueOnce(mkFetchResponse({ positions: [] }));
-    await listPositionsWithRewards(
-      { owner: OWNER_PUBKEY },
-      { apiKey: 'partner-key-123' },
-    );
+    await listPositionsWithRewards({ owner: OWNER_PUBKEY }, { apiKey: 'partner-key-123' });
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer partner-key-123');
@@ -105,9 +102,9 @@ describe('claimRewards — input validation', () => {
   it('throws on empty positionIds', async () => {
     const kp = Keypair.generate();
     const connection = {} as never;
-    await expect(
-      claimRewards({ owner: kp, positionIds: [], connection }),
-    ).rejects.toThrow(/positionIds must be non-empty/);
+    await expect(claimRewards({ owner: kp, positionIds: [], connection })).rejects.toThrow(
+      /positionIds must be non-empty/,
+    );
   });
 });
 
