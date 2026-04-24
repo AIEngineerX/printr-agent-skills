@@ -184,23 +184,48 @@ async function main() {
   console.log('');
 
   // [2] Historical buyback+burn activity on this telecoin.
+  //
+  // This endpoint only works for telecoins with Fee Model #3 (built-in
+  // buyback+burn sink). Model #1 (POB staking) tokens — the primary
+  // target of this kit — return 400 "telecoin does not have buyback and
+  // burn fee sink". That's expected and not a failure; it confirms the
+  // token isn't using Printr's native buyback, which is exactly why
+  // adopters are running THIS kit.
   console.log('[2] buyback-burn-detail');
-  const bb = await printrPost<BuybackBurnDetailResp>('/telecoin/buyback-burn-detail', {
-    telecoin_id: telecoinId,
-    chain: SOLANA_CAIP2,
-    limit: 20,
-  });
-
-  console.log(`      total_trades                 : ${bb.total_trades}`);
-  console.log(`      total_burned                 : ${atomicToHuman(bb.total_burned)}`);
-  console.log(`      total_bought_back            : ${atomicToHuman(bb.total_bought_back)}`);
-  if (bb.trades.length > 0) {
-    console.log(`      recent trades (up to 5):`);
-    for (const t of bb.trades.slice(0, 5)) {
-      console.log(
-        `        ${t.block_timestamp ?? '—'}  burned=${atomicToHuman(t.burned)}  bought=${atomicToHuman(t.bought_back)}  sig=${t.tx.slice(0, 16)}…`,
-      );
+  let bb: BuybackBurnDetailResp | null = null;
+  let bbSkipReason: string | null = null;
+  try {
+    bb = await printrPost<BuybackBurnDetailResp>('/telecoin/buyback-burn-detail', {
+      telecoin_id: telecoinId,
+      chain: SOLANA_CAIP2,
+      limit: 20,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('buyback and burn fee sink')) {
+      bbSkipReason = 'not-fee-model-3';
+    } else {
+      throw e;
     }
+  }
+
+  if (bb) {
+    console.log(`      total_trades                 : ${bb.total_trades}`);
+    console.log(`      total_burned                 : ${atomicToHuman(bb.total_burned)}`);
+    console.log(`      total_bought_back            : ${atomicToHuman(bb.total_bought_back)}`);
+    if (bb.trades.length > 0) {
+      console.log(`      recent trades (up to 5):`);
+      for (const t of bb.trades.slice(0, 5)) {
+        console.log(
+          `        ${t.block_timestamp ?? '—'}  burned=${atomicToHuman(t.burned)}  bought=${atomicToHuman(t.bought_back)}  sig=${t.tx.slice(0, 16)}…`,
+        );
+      }
+    }
+  } else {
+    console.log('      not applicable — telecoin is NOT Fee Model #3 (buyback+burn sink).');
+    console.log('      This is expected for POB model-1 tokens, which is the primary target of');
+    console.log('      this kit. Your buyback history is tracked on Solscan + your own burn_event');
+    console.log('      table, not Printr\'s model-3 feed.');
   }
   console.log('');
 
@@ -229,7 +254,11 @@ async function main() {
     console.log('  mechanically; they just may not surface rewards until volume builds.');
   }
 
-  if (bb.total_trades === 0) {
+  if (bb === null) {
+    console.log('');
+    console.log(`  Buyback history (model-3 endpoint) doesn't apply to this telecoin — see [2].`);
+    console.log('  Track your kit\'s buybacks via your own burn_event table + Solscan instead.');
+  } else if (bb.total_trades === 0) {
     console.log('');
     console.log('  No prior buybacks recorded. The tokenized-agent loop would be the first');
     console.log('  to write buyback+burn history for this telecoin. Solscan remains the');
