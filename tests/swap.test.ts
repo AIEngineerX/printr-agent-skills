@@ -16,17 +16,22 @@ import {
 } from '../src/swap/index.js';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-const INKED_MINT = '2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr';
+
+// Live-test target mint. Defaults to a known-graduated Token-2022 POB mint so
+// live Jupiter tests pass out of the box; override via env var to run the live
+// suite against any other Printr POB mint (must be graduated + route on Jupiter).
+const DEFAULT_LIVE_TEST_MINT = '2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr';
+const LIVE_TEST_MINT = process.env.LIVE_TEST_MINT ?? DEFAULT_LIVE_TEST_MINT;
 
 const live = process.env.SKILL_LIVE !== '0';
 
 describe('quoteSwap — input validation', () => {
   it('throws on amount <= 0', async () => {
     await expect(
-      quoteSwap({ inputMint: SOL_MINT, outputMint: INKED_MINT, amount: 0n, slippageBps: 100 }),
+      quoteSwap({ inputMint: SOL_MINT, outputMint: LIVE_TEST_MINT, amount: 0n, slippageBps: 100 }),
     ).rejects.toThrow(/amount must be > 0/);
     await expect(
-      quoteSwap({ inputMint: SOL_MINT, outputMint: INKED_MINT, amount: -1n, slippageBps: 100 }),
+      quoteSwap({ inputMint: SOL_MINT, outputMint: LIVE_TEST_MINT, amount: -1n, slippageBps: 100 }),
     ).rejects.toThrow(/amount must be > 0/);
   });
 
@@ -34,7 +39,7 @@ describe('quoteSwap — input validation', () => {
     await expect(
       quoteSwap({
         inputMint: SOL_MINT,
-        outputMint: INKED_MINT,
+        outputMint: LIVE_TEST_MINT,
         amount: 1_000_000n,
         slippageBps: 0,
       }),
@@ -42,7 +47,7 @@ describe('quoteSwap — input validation', () => {
     await expect(
       quoteSwap({
         inputMint: SOL_MINT,
-        outputMint: INKED_MINT,
+        outputMint: LIVE_TEST_MINT,
         amount: 1_000_000n,
         slippageBps: -50,
       }),
@@ -53,7 +58,7 @@ describe('quoteSwap — input validation', () => {
     await expect(
       quoteSwap({
         inputMint: SOL_MINT,
-        outputMint: INKED_MINT,
+        outputMint: LIVE_TEST_MINT,
         amount: 1_000_000n,
         slippageBps: 5001,
       }),
@@ -61,7 +66,7 @@ describe('quoteSwap — input validation', () => {
     await expect(
       quoteSwap({
         inputMint: SOL_MINT,
-        outputMint: INKED_MINT,
+        outputMint: LIVE_TEST_MINT,
         amount: 1_000_000n,
         slippageBps: 10_000,
       }),
@@ -74,7 +79,7 @@ describe('quoteSwap — input validation', () => {
     await expect(
       quoteSwap({
         inputMint: SOL_MINT,
-        outputMint: INKED_MINT,
+        outputMint: LIVE_TEST_MINT,
         amount: 1_000_000n,
         slippageBps: 1,
       }),
@@ -82,7 +87,7 @@ describe('quoteSwap — input validation', () => {
     await expect(
       quoteSwap({
         inputMint: SOL_MINT,
-        outputMint: INKED_MINT,
+        outputMint: LIVE_TEST_MINT,
         amount: 1_000_000n,
         slippageBps: 5000,
       }),
@@ -90,21 +95,21 @@ describe('quoteSwap — input validation', () => {
   });
 });
 
-describe('quoteSwap — live against $INKED', () => {
+describe('quoteSwap — live against LIVE_TEST_MINT', () => {
   if (!live) {
     it.skip('skipped: SKILL_LIVE=0 — disable live Jupiter calls', () => {});
     return;
   }
 
-  it('returns a valid JupiterQuote for 0.1 SOL → $INKED', async () => {
+  it('returns a valid JupiterQuote for 0.1 SOL → LIVE_TEST_MINT', async () => {
     const q = await quoteSwap({
       inputMint: SOL_MINT,
-      outputMint: INKED_MINT,
+      outputMint: LIVE_TEST_MINT,
       amount: 100_000_000n,
       slippageBps: 100,
     });
     expect(q.inputMint).toBe(SOL_MINT);
-    expect(q.outputMint).toBe(INKED_MINT);
+    expect(q.outputMint).toBe(LIVE_TEST_MINT);
     expect(q.inAmount).toBe('100000000');
     expect(BigInt(q.outAmount)).toBeGreaterThan(0n);
     expect(BigInt(q.otherAmountThreshold)).toBeGreaterThan(0n);
@@ -127,31 +132,31 @@ describe('quoteSwap — live against $INKED', () => {
   });
 });
 
-describe('getPoolState — $INKED classifies as graduated', () => {
+describe('getPoolState — LIVE_TEST_MINT classifies as graduated', () => {
   if (!live) {
     it.skip('skipped: SKILL_LIVE=0', () => {});
     return;
   }
 
   it('returns state=graduated with Meteora DAMM v2 label', async () => {
-    const r = await getPoolState(SOL_MINT, INKED_MINT, 10_000_000n);
+    const r = await getPoolState(SOL_MINT, LIVE_TEST_MINT, 10_000_000n);
     expect(r.state).toBe('graduated');
     expect(r.quote.routePlan[0].swapInfo.label).toMatch(/DAMM/);
   });
 
   it('returns ammKey that matches live expectations', async () => {
-    const r = await getPoolState(SOL_MINT, INKED_MINT, 10_000_000n);
+    const r = await getPoolState(SOL_MINT, LIVE_TEST_MINT, 10_000_000n);
     expect(r.quote.routePlan[0].swapInfo.ammKey).toBeTypeOf('string');
     expect(r.quote.routePlan[0].swapInfo.ammKey.length).toBeGreaterThan(30);
   });
 
   it('getPoolStateOrThrow returns same graduated result', async () => {
-    const r = await getPoolStateOrThrow(SOL_MINT, INKED_MINT, 10_000_000n);
+    const r = await getPoolStateOrThrow(SOL_MINT, LIVE_TEST_MINT, 10_000_000n);
     expect(r.state).toBe('graduated');
   });
 });
 
-describe('buildSwapTransaction — live against $INKED', () => {
+describe('buildSwapTransaction — live against LIVE_TEST_MINT', () => {
   if (!live) {
     it.skip('skipped: SKILL_LIVE=0', () => {});
     return;
@@ -160,7 +165,7 @@ describe('buildSwapTransaction — live against $INKED', () => {
   it('returns a v0 VersionedTransaction with a real lastValidBlockHeight', async () => {
     const quote = await quoteSwap({
       inputMint: SOL_MINT,
-      outputMint: INKED_MINT,
+      outputMint: LIVE_TEST_MINT,
       amount: 100_000_000n,
       slippageBps: 100,
     });
@@ -178,7 +183,7 @@ describe('buildSwapTransaction — live against $INKED', () => {
   it('priority fee = auto produces a valid tx', async () => {
     const quote = await quoteSwap({
       inputMint: SOL_MINT,
-      outputMint: INKED_MINT,
+      outputMint: LIVE_TEST_MINT,
       amount: 10_000_000n,
       slippageBps: 100,
     });
@@ -194,7 +199,7 @@ describe('buildSwapTransaction — live against $INKED', () => {
   it('priority fee with explicit level produces a valid tx', async () => {
     const quote = await quoteSwap({
       inputMint: SOL_MINT,
-      outputMint: INKED_MINT,
+      outputMint: LIVE_TEST_MINT,
       amount: 10_000_000n,
       slippageBps: 100,
     });
@@ -224,10 +229,11 @@ describe('JUPITER_BASE + JUPITER_TIMEOUT_MS constants', () => {
 });
 
 describe('verifySwapOutput — Token-2022 program ID threading', () => {
-  // Using $INKED as a real Token-2022 mint for the derivation test. No RPC
-  // call is made — getAssociatedTokenAddress is a pure PDA derivation, so
-  // this test runs offline and independent of SKILL_LIVE.
-  const mint = new PublicKey(INKED_MINT);
+  // Uses LIVE_TEST_MINT as a real Token-2022 mint for the derivation test.
+  // The default target is a known Token-2022 POB mint. No RPC call is made —
+  // getAssociatedTokenAddress is a pure PDA derivation, so this test runs
+  // offline and independent of SKILL_LIVE.
+  const mint = new PublicKey(LIVE_TEST_MINT);
   const owner = Keypair.generate().publicKey;
 
   it('derives different ATAs for classic SPL vs Token-2022 with the same (mint, owner)', async () => {
