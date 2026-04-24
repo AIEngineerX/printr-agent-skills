@@ -1,6 +1,6 @@
 # Scenario Tests — printr-swap
 
-Five scenarios. Run each against a **small** amount (0.001 SOL) first to exercise the code path without material cost.
+Six scenarios. Run each against a **small** amount (0.001 SOL) first to exercise the code path without material cost. Scenario 6 (dry-run) spends zero SOL and should be the first thing you run against any new mint.
 
 ## Scenario 1: Happy Path — Graduated Pool, Buy
 
@@ -47,6 +47,21 @@ Five scenarios. Run each against a **small** amount (0.001 SOL) first to exercis
    - Mark their cycle row as failed (`printr-tokenized-agent` uses `burn_event.status='failed'` with the error message recorded).
    - Decide between burning the partial fill anyway or leaving it parked for operator review.
    - Do not retry the swap blindly — next cycle will pick up from the new hot balance; unconditional retry on slippage bust can rapidly drain the hot wallet in a volatile pool.
+
+## Scenario 6: Dry-Run Swap — Validate Route + Compute Cost
+
+1. Operator wants to verify a mint routes cleanly via Jupiter and the swap tx would land at the current pool state — **without spending SOL**.
+2. Build the swap exactly as Scenario 3: `quoteSwap` → `buildSwapTransaction` with `userPublicKey = hotKeypair.publicKey`.
+3. Instead of `executeServerSwap`, call `simulateSwap(connection, tx)`.
+4. Inspect the returned `SimulateSwapResult`:
+   - `ok: true` → simulation succeeded; the tx would have landed.
+   - `computeUnitsConsumed` → should land well under 200,000 (Jupiter's default CU limit). Typical range: 50,000–130,000 for a single-hop route through Meteora DAMM v2.
+   - `logs` → scan for expected program invocations: `JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4` (Jupiter V6), Meteora's CP-AMM (`cpamdp…` family), `TokenkegQ…` (classic SPL), and possibly `TokenzQdB…` (Token-2022 for tokens that use it).
+   - `tokenTransferCount` → sanity check that the swap routed at all. A reading of 2+ is typical. This field is NOT a fee-hook detector — POB fee distribution is async, not per-swap.
+5. **No SOL spent. No signature required. No on-chain state change.**
+6. On a public RPC, the fee-payer pubkey must exist on-chain or simulation returns `AccountNotFound`. Fix: set `BUYER_PUBKEY` to a funded pubkey (public info, no secret) or switch to a Helius-class RPC.
+
+**What this scenario does NOT verify.** Whether Printr POB distribution is live for the telecoin is a **separate check** — run `scripts/verify-printr-mechanism.ts` against Printr's API for that signal. The swap's on-chain shape is the same with or without POB distribution running downstream.
 
 ---
 

@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+- `simulateSwap(connection, tx)` in `src/swap/execute.ts` — wraps `connection.simulateTransaction` with `sigVerify: false, replaceRecentBlockhash: true, innerInstructions: true`. Returns `SimulateSwapResult { ok, err, logs, computeUnitsConsumed, innerInstructions, tokenTransferCount }`. Lets adopters validate route resolution + compute cost before enabling a live cron — no SOL spent, no signature required.
+- `TOKEN_2022_PROGRAM_ID` exported from `src/payments/constants.ts`. `simulateSwap`'s `tokenTransferCount` covers both classic SPL-Token and Token-2022 — many Printr POB tokens (including $INKED) use the Token-2022 standard.
+- `scripts/verify-inked-graduation.ts` — Jupiter route classification + pool-depth probes at realistic cycle sizes. Confirms graduation state + slippage feasibility.
+- `scripts/dry-run-swap.ts` — one-shot simulated swap against any mint. Parses inner instructions, prints a program-log dump, exits non-zero on program error.
+- `scripts/verify-printr-mechanism.ts` — queries Printr's `POST /v1/staking/list-positions-with-rewards` and `POST /v1/telecoin/buyback-burn-detail`. Reports aggregated claimable + claimed staker rewards for a given telecoin. **This is the correct way to verify POB fee distribution is live** — see Corrected below.
+
+### Corrected
+- **POB model-1 fee distribution is async, not per-swap.** The README, `printr-tokenized-agent/SKILL.md`, `printr-swap/SKILL.md`, and their SCENARIOS.md companions previously implied a per-swap fee-hook transfer that could be detected in a swap's inner instructions. This was wrong — verified empirically against $INKED on 2026-04-23. POB model-1 tokens accrue fees via Meteora DAMM v2's standard LP-fee accounting, and Printr's SVM program (`T8HsGYv7sMk3kTnyaRqZrbRPuntYzdh12evXBkprint`) distributes accumulated SOL to stakers asynchronously. Every POB model-1 swap on-chain looks identical to a plain Meteora DAMM v2 swap. Doc passages + the `possibleFeeHookDetected` field have been removed; `SimulateSwapResult.tokenTransferCount` is retained as a generic route-sanity check with its framing corrected. See `printr-tokenized-agent/SKILL.md` §"How POB Model-1 Fee Distribution Actually Works" for the accurate mechanism.
+
 ### Dependencies
 - `@neondatabase/serverless` bumped `^0.9.0` → `^1.1.0` (PR #4). Test suite still green against pg-mem; live-Neon validation remains adopter-side per `KNOWN_ISSUES.md`.
 - Dev-deps group bumped (PR #3).

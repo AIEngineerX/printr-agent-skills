@@ -1,7 +1,7 @@
 ---
 name: printr-tokenized-agent
 description: >
-  Build a tokenized-agent revenue loop on a Printr POB token. Composes `printr-agent-payments` (accept user SOL/USDC for agent actions) with `printr-swap` (Jupiter buyback) and adds SPL `burn` plus a scheduled hourly cycle, all under the creator's own treasury. On Printr POB-model-1 tokens, the buyback trade itself pays the staking pool on its way to the burn — a double-effect unique to Printr's fee model. Triggers on "Printr tokenized agent", "agent revenue burn", "buyback and burn for a Printr POB token", "first tokenized agent on Printr", or when composing the `printr-swap` + `printr-agent-payments` skills into one loop.
+  Build a tokenized-agent revenue loop on a Printr POB token. Composes `printr-agent-payments` (accept user SOL/USDC for agent actions) with `printr-swap` (Jupiter buyback) and adds SPL `burn` plus a scheduled hourly cycle, all under the creator's own treasury. On Printr POB-model-1 tokens the buyback contributes to the DAMM v2 pool's LP-fee accrual, which Printr's POB program distributes to stakers asynchronously — the buyback both reduces supply and feeds the pool that downstream stakers draw from (second-order effect, not a per-swap hook). Triggers on "Printr tokenized agent", "agent revenue burn", "buyback and burn for a Printr POB token", "first tokenized agent on Printr", or when composing the `printr-swap` + `printr-agent-payments` skills into one loop.
 metadata:
   author: printr-community
   version: '1.0'
@@ -37,6 +37,7 @@ This skill composes two sub-skills. You MUST gather prerequisites for both, plus
 - [ ] Cadence (default `0 * * * *` = hourly) — confirm your scheduler supports cron
 - [ ] Treasury custody tier — **Pattern 1, 2, 3, or 4** from `references/CUSTODY_PATTERNS.md`
 - [ ] Solana RPC URL (production-grade recommended — Helius paid tier or equivalent)
+- [ ] **Dry-run acknowledgment:** have you run at least one successful `BUYBACK_DRY_RUN=true` cycle against the live mint, confirmed the simulated swap routes through the expected pool, and verified the inner-instruction output is plausible? A live cycle MUST NOT run before this. See §Dry-Run Mode.
 
 You MUST ask the user for ALL unchecked items in your very first response. Do not assume defaults. Do not proceed until the user has explicitly answered each one.
 
@@ -57,6 +58,7 @@ Rules 1–6 are standard Solana / payment-skill practice **[pattern]**. Rule 7 i
 11. **Burn idempotency.** Record the swap signature in the DB BEFORE executing the burn. If the burn fails after the swap succeeds, the next cycle detects a non-zero agent-token balance in the hot wallet and retries the burn only (does not re-swap).
 12. **Never hot-wire the cold key.** The cold wallet's private key must never touch the server process that runs the scheduled buyback. Manual sweep (via Squads or hardware wallet) is the only legitimate way to fund the hot. **[derived]**
 13. **Never accept an authority-handoff from a third-party contract.** Authority-gated operations are one-way doors: if you transfer control of your treasury or fee routing to a protocol contract, only that protocol's support can reverse it. **[derived — learned the hard way when a third-party launchpad's authority contract permanently consumed a dev wallet's buyback-configuration authority; the dev wallet could no longer change buyback settings or recover control.]**
+14. **Dry-run before first live cycle.** Always run with `BUYBACK_DRY_RUN=true` against the actual mint at least once before enabling the cron. Dry-run runs through the full cycle using `connection.simulateTransaction` — no SOL spent, no DB writes — and surfaces any issue that would cause a live cycle to fail or fill unexpectedly. First production adopters on a new token MUST NOT skip this step. **[derived]**
 
 ## Composes With
 
@@ -91,6 +93,12 @@ BUYBACK_MAX_LAMPORTS=1000000000                     # 1 SOL
 BUYBACK_SLIPPAGE_BPS=100                            # 1%
 BUYBACK_CADENCE=0 * * * *                           # hourly
 BURN_SPLIT_BURN_BPS=10000                           # 10000 = 100% burn. 8000 = 80% burn / 20% stake
+
+# Dry-run toggle. When 'true', runBuybackCycle simulates swap + burn via
+# connection.simulateTransaction, returns what WOULD happen, writes nothing
+# to the DB, and sends no tx. Required to be 'true' for the first cycle
+# against any new mint. Flip to 'false' only after a successful dry-run.
+BUYBACK_DRY_RUN=true
 ```
 
 **`TREASURY_RECEIVER_PUBKEY` vs `TREASURY_COLD_PUBKEY`:** In the recommended custody setup (Pattern 3 or 4, see `references/CUSTODY_PATTERNS.md`), these are the same address — users pay directly into the cold wallet. Some teams prefer a dedicated "mailbox" receiver that forwards to cold periodically; in that case the two env vars differ. The skill works either way; just be deliberate about which pattern you choose.
@@ -379,14 +387,36 @@ export type CycleResult =
       solIn: bigint;
       amountBurned: bigint;
     }
+  | {
+      action: 'dry_run';
+      solIn: bigint;
+      expectedBought: bigint;
+      wouldBurn: bigint;
+      swap: {
+        simulatedErr: unknown;
+        computeUnitsConsumed: number | null;
+        tokenTransferCount: number | null;
+      };
+      burn: {
+        simulatedErr: unknown;
+        computeUnitsConsumed: number | null;
+      };
+    }
   | { action: 'failed'; stage: 'swap' | 'burn' | 'preflight'; error: string };
 
-export async function runBuybackCycle(): Promise<CycleResult> {
+export async function runBuybackCycle(cfg?: { dryRun?: boolean }): Promise<CycleResult> {
   const connection = new Connection(process.env.SOLANA_RPC_URL!, 'confirmed');
   const hotKeypair = loadHotKeypair();
+  const dryRun = cfg?.dryRun ?? process.env.BUYBACK_DRY_RUN === 'true';
   let stage: 'preflight' | 'swap' | 'burn' = 'preflight';
 
   try {
+    // Dry-run short-circuits the live path. See §Dry-Run Mode.
+    if (dryRun) {
+      stage = 'swap';
+      return await runDryRunCycle(connection, hotKeypair);
+    }
+
     // Phase 0 — recover any previously-partial cycle before starting new work.
     const recovery = await findRecoveryCycle(connection, hotKeypair);
     if (recovery) {
@@ -431,6 +461,91 @@ export async function runBuybackCycle(): Promise<CycleResult> {
   }
 }
 ```
+
+## How POB Model-1 Fee Distribution Actually Works
+
+**Important mechanism clarification — verified empirically 2026-04-23 against $INKED:**
+
+POB Model-1 does **not** emit a per-swap fee-hook transfer. The mechanism is:
+
+1. Token graduates from Meteora DBC → Meteora DAMM v2.
+2. An LP position on the DAMM v2 pool is owned by Printr's SVM program `T8HsGYv7sMk3kTnyaRqZrbRPuntYzdh12evXBkprint`.
+3. Every trade on the pool accrues LP fees via standard Meteora DAMM v2 fee accounting — **nothing Printr-specific happens during the swap**. Printr's program is NOT invoked on the hot path.
+4. **Separately and asynchronously**, Printr's program runs a reward distribution job: reads accrued fees, distributes SOL (and in some cases telecoin) to stakers proportionally by `(staked × lockMultiplier) / totalWeightedStake`.
+5. Stakers claim via `POST /v1/staking/claim-rewards`.
+
+**Consequences for this skill:**
+
+- The kit's buybacks contribute to LP-fee accrual on the DAMM v2 pool as a second-order effect. They do NOT pay stakers synchronously during the swap. Any skill doc or README passage that implies a per-swap payout is misleading — corrected as of 2026-04-23.
+- `simulateSwap` can verify the route + compute cost, but it **cannot** verify the POB mechanism. The mechanism is proved by reading Printr's API, not by inspecting a swap's inner instructions.
+- Every POB model-1 swap on-chain looks identical to a plain Meteora DAMM v2 swap. There is no extra transfer to look for. **[Printr]**
+
+**Canonical mechanism check** — `scripts/verify-printr-mechanism.ts` in this kit:
+```bash
+npx tsx scripts/verify-printr-mechanism.ts <TELECOIN_ID>
+```
+Queries `POST /v1/staking/list-positions-with-rewards` + `POST /v1/telecoin/buyback-burn-detail` and reports aggregated claimable/claimed rewards. Non-zero = mechanism is live for this telecoin.
+
+## Dry-Run Mode
+
+**Mandatory for the first cycle against any new mint.** When `BUYBACK_DRY_RUN=true` (or `CycleConfig.dryRun=true`), `runBuybackCycle` runs through the full flow but:
+
+- Calls `simulateSwap` (from `printr-swap`) instead of `executeServerSwap`. No tx submitted.
+- Uses Solana's `connection.simulateTransaction` under the hood with `sigVerify: false, replaceRecentBlockhash: true, innerInstructions: true` — no SOL spent, no signature required. **[pattern]**
+- Builds the burn tx at the simulated output amount and simulates it as well. The burn simulation will fail with a token-balance error because the hot wallet's ATA hasn't actually received the swap output — **this is expected** and the `'dry_run'` CycleResult surfaces it as `burn.simulatedErr` so the caller can inspect compute cost and instruction shape without treating it as a real failure.
+- Writes nothing to the DB. `burn_event` stays untouched. No `status='swap_done'` row means `findRecoveryCycle` on the next live cycle will not try to recover a dry-run.
+- Returns a `'dry_run'` CycleResult variant with:
+  - `solIn` — the lamports that would have been spent.
+  - `expectedBought` — the output amount Jupiter's simulation says the ATA would receive.
+  - `wouldBurn` — the amount the burn instruction was built for (same as `expectedBought` under 100% burn policy).
+  - `swap.tokenTransferCount` — count of Token Program transfers in simulated inner instructions (covers both SPL-Token and Token-2022 since many POB tokens are Token-2022). Sanity check that the swap routed at all; NOT a proxy for fee-hook detection (see §"How POB Model-1 Fee Distribution Actually Works").
+
+### What a successful dry-run proves
+
+1. **Jupiter route exists** for the mint and resolves at the target `BUYBACK_MAX_LAMPORTS`.
+2. **Pool is classified** (DAMM v2 vs DBC) — the swap won't silently route through an un-classified venue.
+3. **`quote.otherAmountThreshold` is plausible** — `expectedBought` from simulation should track it closely.
+4. **Compute-unit cost is within budget** — `swap.computeUnitsConsumed` should land well under 200,000 CUs (Jupiter's default limit).
+5. **Hot wallet keypair loads** — `loadHotKeypair` succeeds.
+
+### What a dry-run does NOT prove
+
+- Network conditions at the time of the real tx. Compute-unit pricing, MEV, slot congestion all vary.
+- The tx will land within `lastValidBlockHeight` on the real run. Network-level retries are not part of simulation.
+- Persistent-DB lock semantics under concurrent cron firings. Dry-run skips all DB writes.
+- **POB fee distribution is live for this telecoin.** Separate concern — use `scripts/verify-printr-mechanism.ts`.
+
+### Wiring
+
+```typescript
+// CycleConfig gains one optional field:
+export interface CycleConfig {
+  pool: QueryablePool;
+  connection: Connection;
+  hotKeypair: Keypair;
+  agentTokenMint: PublicKey;
+  thresholdLamports: bigint;
+  maxPerCycleLamports: bigint;
+  slippageBps: number;
+  dryRun?: boolean; // default false. When true, no submission + no DB writes.
+}
+
+// Scheduler handler reads env and threads through:
+export async function handler(): Promise<CycleResult> {
+  return runBuybackCycle({
+    // ...existing config...
+    dryRun: process.env.BUYBACK_DRY_RUN === 'true',
+  });
+}
+```
+
+### Pattern for first production run
+
+1. **Mechanism check first** — `npx tsx scripts/verify-printr-mechanism.ts <TELECOIN_ID>`. Confirm POB distribution is live before spending engineering effort on the buyback loop.
+2. Deploy with `BUYBACK_DRY_RUN=true` + `BUYBACK_ENABLED=true` (kill-switch). Cron fires hourly.
+3. Inspect the first few dry-run results via logs. Confirm: Jupiter routed DAMM v2, `expectedBought` ≈ `quote.otherAmountThreshold`, compute cost plausible.
+4. If all green for at least 2–3 consecutive dry runs across different slots, flip `BUYBACK_DRY_RUN=false`. The next cron fires a live cycle.
+5. First live cycle's burn is the evidence you can PR into the adopters table.
 
 ## Scheduled cadence
 

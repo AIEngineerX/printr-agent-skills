@@ -1,6 +1,6 @@
 # Scenario Tests — printr-tokenized-agent
 
-Six end-to-end scenarios covering the composed loop. Each walks through `runBuybackCycle` with a specific starting state. **[pattern]** Run against a testnet/devnet or the smallest possible mainnet amounts before ever enabling your prod cron.
+Eight end-to-end scenarios covering the composed loop. Each walks through `runBuybackCycle` with a specific starting state. **[pattern]** Run **Scenario 7 (dry-run) first** against the real mint before flipping `BUYBACK_DRY_RUN=false` and touching any live SOL.
 
 ## Scenario 1: Below-Threshold — No-op
 
@@ -85,6 +85,35 @@ Six end-to-end scenarios covering the composed loop. Each walks through `runBuyb
 7. **Skill behavior:** the cron is hourly — if it's a transient Jupiter issue, next hour's cycle will succeed. If it's pre-graduation, the cycle will no-op (or fail-to-quote) until graduation completes.
 8. **Operator action:** check DexScreener for the mint's pool. If pool exists and has liquidity but Jupiter won't quote, file a Jupiter support ticket. If pool doesn't exist (pre-graduation), wait.
 
+## Scenario 7: Dry-Run — First Cycle Against a New Mint
+
+1. Operator deploys with `BUYBACK_DRY_RUN=true`. Hot wallet funded with enough SOL to exceed threshold (e.g. 0.3 SOL).
+2. Cron fires. `runBuybackCycle({ dryRun: true })` invoked.
+3. Phase 0 (`findRecoveryCycle`) is **skipped** under dry-run — no ATA read, no DB read. Dry-run does not branch into recovery work.
+4. Phase 1 equivalent: reads hot balance, applies threshold check, calls `quoteSwap(SOL → AGENT, amountIn, slippageBps=100)` normally. Quote returns `outAmount` + `otherAmountThreshold` as in a real quote.
+5. Instead of `executeServerSwap`, calls `simulateSwap(connection, tx)` from `printr-swap`. Solana RPC returns a `SimulatedTransactionResponse` with `err: null`, `innerInstructions: [...]`, `unitsConsumed: ~56000–120000` (typical range for a Jupiter route through Meteora DAMM v2).
+6. Burn tx is built with the simulated output amount and simulated. Expected: `burn.simulatedErr` is non-null (token-balance error) — the hot ATA doesn't actually hold the simulated-swap output. This is NOT a failure; the `'dry_run'` result surfaces it so the caller can verify the burn instruction shape and CU cost.
+7. **No DB writes.** `burn_event` table untouched. Subsequent live cycles will not see dry-run artifacts.
+8. Returns `{ action: 'dry_run', solIn, expectedBought, wouldBurn, swap: { simulatedErr: null, computeUnitsConsumed, tokenTransferCount }, burn: { simulatedErr: {...}, computeUnitsConsumed } }`.
+9. **Operator checks:**
+   - `swap.simulatedErr === null` — the swap would land.
+   - `expectedBought` close to `otherAmountThreshold` — fill quality will be acceptable.
+   - `swap.computeUnitsConsumed < 200000` — under Jupiter's default CU ceiling.
+   - Burn simulation's instruction shape looks correct in the logs (invokes the SPL Token Program's `burn` ix on the expected mint).
+   - All green → `BUYBACK_DRY_RUN=false` + wait one hour for the first live cycle.
+10. **What dry-run does NOT check:** whether Printr POB distribution is live for this telecoin. That's a separate read — `scripts/verify-printr-mechanism.ts` against Printr's API. Run that before spending engineering effort on the loop.
+
+## Scenario 8: POB Mechanism Check Before First Cycle
+
+This is a **separate** check from the dry-run above — different signal, different proof path.
+
+1. Before touching any SOL, operator runs `npx tsx scripts/verify-printr-mechanism.ts <TELECOIN_ID>`.
+2. The script queries `POST /v1/staking/list-positions-with-rewards` and `POST /v1/telecoin/buyback-burn-detail` against `api-preview.printr.money`. Reports aggregated claimable + claimed rewards for the telecoin.
+3. **Green signal:** non-zero `Σ claimable quote` and/or `Σ claimed quote` across all positions. Mechanism is actively distributing; real stakers have received real SOL.
+4. **Yellow signal:** positions exist but rewards are zero. Either no post-graduation trading volume yet, or the distribution job has not fired since stakes began. Buybacks will still work mechanically; they just may not surface rewards until volume builds.
+5. **Red signal (don't proceed):** 0 positions returned. Without stakers the POB mechanism has nothing to distribute to. Buybacks will still reduce supply, but the "contribute to fees that stakers draw from" half of the loop is inert. Decide whether to proceed on supply-reduction alone.
+6. Note on `buyback-burn-detail`: this endpoint returns `400 telecoin does not have buyback and burn fee sink` for POB model-1 tokens — Printr only tracks its own Fee Model #3 buybacks, not third-party kit-driven buybacks. This is **expected** on model-1, not a failure. Solscan remains canonical source of truth for your cycles' burn txs.
+
 ---
 
 ## Troubleshooting
@@ -101,3 +130,6 @@ Six end-to-end scenarios covering the composed loop. Each walks through `runBuyb
 | Unexpected spike in SOL outflow from hot                                            | Cron fired faster than cadence suggests                                      | Check for duplicate schedules. Netlify + Vercel crons on the same repo can double-fire.                                                                                                                            |
 | Cold wallet balance grows but never sweeps                                          | Sweeps are manual in Pattern 3/4 — this is intentional                       | Schedule a weekly calendar reminder, or migrate to an automated sweep that still requires a multisig signer (Squads supports scheduled transactions in V4).                                                        |
 | Invoice payments confirmed but `payment_invoice` row still `pending`                | `verifyInvoiceWithRetries` ran out of retries before the RPC index caught up | Client should retry `/api/pay/verify` after 30s. Or upgrade to a faster RPC. For a permanent fix: Helius Enhanced Webhooks push verification instead of pull.                                                      |
+| Dry-run returns `burn.simulatedErr` with "insufficient funds" or similar             | Expected — the hot ATA hasn't received the simulated swap output             | Not a failure. The burn-sim error surfaces instruction shape + CU cost for inspection. Ignore the error class, look at `computeUnitsConsumed` and whether the burn program ID matches SPL Token / Token-2022.       |
+| `verify-printr-mechanism.ts` reports 0 positions for a supposedly POB model-1 telecoin | Token may not be POB model-1, or no stakers yet                              | Cross-check the fee model on Printr's gitbook / app dashboard. If POB is correct but zero stakers, the buyback loop will still burn supply but the staker-distribution half is inert until someone stakes.          |
+| `buyback-burn-detail` returns `400 telecoin does not have buyback and burn fee sink` | Expected on POB model-1 — this endpoint is only for Printr's Fee Model #3    | Not a failure. This kit's buybacks are tracked by Solscan, not by Printr's API, for model-1 tokens.                                                                                                                |

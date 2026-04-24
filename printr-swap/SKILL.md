@@ -339,6 +339,94 @@ export async function executeServerSwap(
 }
 ```
 
+### Step 3c: Simulated swap (dry-run)
+
+Used by `printr-tokenized-agent`'s `BUYBACK_DRY_RUN` mode. Runs the full swap tx through Solana's `simulateTransaction` RPC without submission — no SOL spent, no signature required, inner instructions exposed.
+
+```typescript
+import {
+  Connection,
+  VersionedTransaction,
+  type SimulatedTransactionResponse,
+} from '@solana/web3.js';
+
+export interface SimulateSwapResult {
+  /** True when simulation completed without a program error. */
+  ok: boolean;
+  /** Program-level error if the simulated tx would have failed. */
+  err: unknown;
+  /** Per-instruction logs. Useful for inspecting which programs were
+   *  invoked and which CPIs they emitted. */
+  logs: readonly string[];
+  /** Compute units the simulated tx would have consumed. Useful for tuning
+   *  `setComputeUnitLimit` in production. */
+  computeUnitsConsumed: number | null;
+  /** Inner instructions returned by the RPC when
+   *  `simulateTransaction({ innerInstructions: true })`. Parsed when the RPC
+   *  supports jsonParsed for simulation output (Helius does; Ankr/PublicNode
+   *  may return base58 only). */
+  innerInstructions: SimulatedTransactionResponse['innerInstructions'];
+  /** Count of Token Program transfer/transferChecked ixs across inner
+   *  instruction groups. Covers both classic SPL-Token (`Tokenkeg...`) and
+   *  Token-2022 (`TokenzQdB...`) — many Printr POB tokens use Token-2022.
+   *  Useful as a sanity check that the swap routed at all. NOT a proxy for
+   *  POB fee-hook detection: POB model-1 fees accrue via Meteora's standard
+   *  LP accounting and are distributed asynchronously by Printr's SVM
+   *  program — there is no per-swap transfer to detect. Null when the RPC
+   *  didn't return inner instructions in parsed form. **[Printr]** */
+  tokenTransferCount: number | null;
+}
+
+export async function simulateSwap(
+  connection: Connection,
+  tx: VersionedTransaction,
+): Promise<SimulateSwapResult> {
+  // `sigVerify: false` skips signature check (we don't sign in dry-run).
+  // `replaceRecentBlockhash: true` avoids stale-blockhash failures — the
+  // Jupiter-built tx carries a real blockhash but simulation may lag.
+  // `innerInstructions: true` returns the nested CPI tree.
+  const result = await connection.simulateTransaction(tx, {
+    sigVerify: false,
+    replaceRecentBlockhash: true,
+    commitment: 'confirmed',
+    innerInstructions: true,
+  });
+
+  const value = result.value;
+  const inners = value.innerInstructions ?? null;
+  let tokenTransferCount: number | null = null;
+  if (inners) {
+    tokenTransferCount = 0;
+    for (const group of inners) {
+      for (const ix of group.instructions) {
+        const programId = 'programId' in ix ? ix.programId.toBase58() : null;
+        if (programId !== TOKEN_PROGRAM_ID && programId !== TOKEN_2022_PROGRAM_ID) continue;
+        if (
+          'parsed' in ix &&
+          typeof ix.parsed === 'object' &&
+          ix.parsed !== null &&
+          'type' in ix.parsed
+        ) {
+          const t = (ix.parsed as { type: string }).type;
+          if (t === 'transfer' || t === 'transferChecked') tokenTransferCount++;
+        }
+      }
+    }
+  }
+
+  return {
+    ok: value.err == null,
+    err: value.err,
+    logs: value.logs ?? [],
+    computeUnitsConsumed: value.unitsConsumed ?? null,
+    innerInstructions: inners,
+    tokenTransferCount,
+  };
+}
+```
+
+**What this does NOT do.** Do not use simulated inner instructions to try to detect POB fee-hook activity. On Printr POB model-1, fee distribution is **async**: trading accrues LP fees in the Meteora DAMM v2 pool via standard LP-fee accounting, and Printr's SVM program (`T8HsGYv7sMk3kTnyaRqZrbRPuntYzdh12evXBkprint`) distributes them to stakers on its own schedule. The swap's on-chain shape is indistinguishable from a plain Meteora DAMM v2 swap. To verify POB distribution is live for a given telecoin, query Printr's API via `scripts/verify-printr-mechanism.ts` in the parent kit. **[Printr]**
+
 ### Step 4: Post-swap verification
 
 Never trust the confirmation alone — verify the ATA balance actually moved. The tx can confirm without delivering the expected output if the route partially fills or routes through a broken AMM. **[pattern]**

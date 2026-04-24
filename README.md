@@ -19,7 +19,7 @@ Each skill auto-triggers in any compatible agent CLI when you describe a matchin
 
 ## Why this exists for Printr
 
-Printr POB tokens live on Meteora DBC (bonding curve) and migrate to Meteora DAMM v2 on graduation. This kit builds an agent-revenue → buyback → burn loop directly on that stack: Jupiter for routing, SPL `burn` for supply reduction, memo-matched on-chain invoice verification for payment acceptance. On top of Printr's POB model the mechanic gets a genuine upgrade: **model-1 tokens pay the staking pool on every trade**, including the buyback itself. Each cycle both reduces supply AND pays stakers on its way to the burn — a double-effect that's structurally unique to Printr's fee model.
+Printr POB tokens live on Meteora DBC (bonding curve) and migrate to Meteora DAMM v2 on graduation. This kit builds an agent-revenue → buyback → burn loop directly on that stack: Jupiter for routing, SPL `burn` for supply reduction, memo-matched on-chain invoice verification for payment acceptance. On top of Printr's POB model the mechanic has a second-order effect: **buyback swaps route through the DAMM v2 pool, adding to LP-fee accrual that Printr's POB program periodically distributes to stakers in SOL**. The buyback doesn't pay stakers *during* the swap (POB distribution is async, not a per-swap hook) — but each cycle still both reduces supply AND contributes to the fee pool that downstream stakers draw from. Verify your target telecoin's POB mechanism is live before enabling a cron via `scripts/verify-printr-mechanism.ts`.
 
 ## Available Skills
 
