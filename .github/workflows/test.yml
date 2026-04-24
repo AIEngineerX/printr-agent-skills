@@ -26,8 +26,17 @@ jobs:
 
       - run: npm ci
 
+      - name: Format check
+        run: npx prettier --check .
+
       - name: Typecheck
         run: npx tsc --noEmit
+
+      # Validate the published-artifact compile path. A break here means
+      # `npm install` from a git URL (which runs `prepare` → `npm run build`)
+      # would ship broken `dist/` to adopters.
+      - name: Build dist
+        run: npx tsc --project tsconfig.build.json
 
       # SKILL_LIVE=0 skips the live Jupiter integration tests — CI shouldn't
       # hammer the public lite-api on every push. Run them locally via

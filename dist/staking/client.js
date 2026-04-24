@@ -85,12 +85,21 @@ export async function claimRewards(args, options) {
     // The list endpoint filters by telecoin_ids, not position_ids — pull by
     // owner and filter client-side. Paginate until every requested positionId
     // is found; otherwise report the gap instead of silently undercounting.
+    //
+    // MAX_CLAIM_PAGES caps the loop — 20 * 100-position pages = 2000 positions,
+    // which is more than any real owner should have. Protects against a
+    // compromised / broken upstream that returns next_cursor forever (each
+    // request is 15s-timeout-bounded; without the cap this would compound
+    // into minutes of blocking).
+    const MAX_CLAIM_PAGES = 20;
     const ownerCaip = solanaCaip10(args.owner.publicKey);
     const wanted = new Set(args.positionIds);
     const matchedPositions = [];
     let cursor;
+    let pagesFetched = 0;
     do {
         const page = await listPositionsWithRewards({ owner: args.owner.publicKey, cursor, limit: 100 }, options);
+        pagesFetched++;
         for (const p of page.positions) {
             if (wanted.has(p.info.position)) {
                 matchedPositions.push(p);
@@ -100,6 +109,11 @@ export async function claimRewards(args, options) {
         if (wanted.size === 0)
             break;
         cursor = page.next_cursor;
+        if (pagesFetched >= MAX_CLAIM_PAGES && cursor) {
+            throw new Error(`claimRewards: pagination exceeded MAX_CLAIM_PAGES=${MAX_CLAIM_PAGES} without finding all positions. ` +
+                `${wanted.size} unresolved. Either the owner has more than ${MAX_CLAIM_PAGES * 100} positions ` +
+                `(unusual — check positionIds), or the Printr API is returning next_cursor unexpectedly.`);
+        }
     } while (cursor);
     if (wanted.size > 0) {
         throw new Error(`claimRewards: ${wanted.size} positionId(s) not found in owner's list-positions-with-rewards: ${Array.from(wanted).join(', ')}`);

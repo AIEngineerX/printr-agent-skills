@@ -1,7 +1,18 @@
-// Performance pins for runBuybackCycle happy path. Fails CI on round-trip
-// regressions. Swap primitives are mocked so the measurement is of the
-// orchestrator's overhead + DB writes + local tx construction, independent
-// of live Jupiter / RPC latency.
+// Performance pins for runBuybackCycle happy path. This test does NOT
+// measure production cycle latency — swap, claim, and verify primitives
+// are mocked to resolve instantly, so all external I/O (Jupiter, RPC) is
+// stripped. What it DOES measure and gate:
+//
+//   1. Round-trip count — asserts the orchestrator makes exactly N
+//      RPC calls per path (completed / recovered / noop). A regression
+//      here means the orchestrator is doing extra network work.
+//   2. Orchestrator body overhead — <500ms for pure local work (tx
+//      construction, DB writes, signature assembly, control flow).
+//      Real cycles are 1-3 seconds once Jupiter + RPC are in the loop.
+//
+// Treat the <500ms budget as "this test is fast", not "production is
+// fast". For real-latency regressions, run `SKILL_LIVE=1 npm test` and
+// watch the per-describe timings in swap.test.ts.
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { Keypair, PublicKey, type VersionedTransaction } from '@solana/web3.js';

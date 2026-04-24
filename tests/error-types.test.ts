@@ -125,6 +125,17 @@ describe('error-class hierarchy — adopters can branch on instanceof', () => {
     expect(new SwapBelowMinimumError(1n, 2n).stack).toBeDefined();
   });
 
+  it('all four error classes are importable from @printr/agent-skills/tokenized-agent', async () => {
+    // MONITORING.md promises a single import line — this test pins the
+    // contract so a future refactor that drops the re-export fails CI
+    // instead of breaking every adopter's error-routing code silently.
+    const tokenizedAgent = await import('../src/tokenized-agent/index.js');
+    expect(tokenizedAgent.JupiterApiError).toBe(JupiterApiError);
+    expect(tokenizedAgent.PrintrApiError).toBe(PrintrApiError);
+    expect(tokenizedAgent.OnChainConfirmError).toBe(OnChainConfirmError);
+    expect(tokenizedAgent.SwapBelowMinimumError).toBe(SwapBelowMinimumError);
+  });
+
   it('classes are not confusable with each other', () => {
     const jup = new JupiterApiError('/x', 500, '');
     const printr = new PrintrApiError('/x', 500, '');

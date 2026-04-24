@@ -18,6 +18,8 @@ The kit itself emits no logs or metrics — it throws typed errors and returns a
 
 ## Error-routing pattern (adopter-side)
 
+**Illustrative only** — `@sentry/node` and the `metrics` client are NOT provided by this kit; swap them for whatever your stack already uses (Datadog, Prometheus, OpenTelemetry, plain `console.error`).
+
 ```typescript
 import {
   runBuybackCycle,
@@ -27,6 +29,9 @@ import {
   SwapBelowMinimumError,
 } from '@printr/agent-skills/tokenized-agent';
 import { captureException } from '@sentry/node';
+// `metrics` here is whatever metrics client your project already wires
+// (StatsD, Datadog client, Prometheus pushgateway, etc.) — the kit does
+// not provide one.
 
 try {
   const result = await runBuybackCycle(cfg);
@@ -64,7 +69,7 @@ try {
 
 ## SQL alert queries
 
-The schema is in `printr-tokenized-agent/SKILL.md` §Database Schema. These queries assume Postgres 13+ (Neon compatible).
+The schema is in `printr-tokenized-agent/SKILL.md` §Database Schema. These queries target Postgres 13+ (Neon compatible) — they use `percentile_cont(...) WITHIN GROUP`, `date_trunc`, and `ILIKE`, all standard in real Postgres. They are **not exercised by the kit's test suite** (pg-mem doesn't support all of these); verify against your production database before wiring alerts.
 
 ### Stranded tokens — highest-priority alert
 

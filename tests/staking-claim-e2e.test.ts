@@ -210,6 +210,31 @@ describe('claimRewards — happy path against mocked Printr + real tx assembly',
     expect(call2Body.cursor).toBe('PAGE_2');
   });
 
+  it('throws after MAX_CLAIM_PAGES if Printr returns next_cursor forever (upstream loop guard)', async () => {
+    // Simulate a broken / hostile upstream that returns 100 positions + a
+    // fresh next_cursor on every request, indefinitely. Without the cap
+    // this would compound 15s-per-request timeouts into minutes of hang.
+    // Wanted position is never in any page so the cap kicks in.
+    for (let i = 0; i < 25; i++) {
+      const page = Array.from({ length: 100 }, (_, j) =>
+        fakePosition({
+          position: `pos-page-${i}-${j}`,
+          claimableQuoteLamports: '1',
+        }),
+      );
+      fetchMock.mockResolvedValueOnce(
+        httpResponse({ positions: page, next_cursor: `PAGE_${i + 1}` }),
+      );
+    }
+
+    const { conn } = makeClaimTxConn();
+    await expect(
+      claimRewards({ owner: OWNER, positionIds: [POS_1], connection: conn }),
+    ).rejects.toThrow(/pagination exceeded MAX_CLAIM_PAGES=20/);
+    // Confirms exactly 20 pages were attempted before giving up — not more.
+    expect(fetchMock).toHaveBeenCalledTimes(20);
+  });
+
   it('throws with the missing position IDs when a requested position cannot be found', async () => {
     // Pagination exhausted without finding POS_3 — no silent undercount.
     fetchMock.mockResolvedValueOnce(
