@@ -7,13 +7,12 @@ All notable changes to this project are documented here. Format follows [Keep a 
 ## [0.2.0] — 2026-04-24
 
 **First production cycle lands.** `runBuybackCycle` executed its first
-live mainnet run against $INKED (graduated Token-2022 POB telecoin) on
-2026-04-24 — 0.16 SOL spent, 540.26M $INKED bought, 540.26M $INKED
-burned, supply verifiably reduced. Solscan: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E), [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz).
+live mainnet run against a graduated Token-2022 POB telecoin on
+2026-04-24 — supply verifiably reduced. Solscan: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E), [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz).
 
 ### Maturity status
 
-- `runBuybackCycle` + `tokenProgramId` + `simulateSwap`: **Production-verified** on $INKED.
+- `runBuybackCycle` + `tokenProgramId` + `simulateSwap`: **Production-verified** — see the live-cycle Solscan links above.
 - `autoClaim` (new in 0.2.0): **Preview** — code complete, unit-tested, not yet run live. Widens blast radius — see `printr-tokenized-agent/SKILL.md` §Funding sources before enabling.
 - `printr-agent-payments` skill: **Unproven in production** — 96 unit tests pass, no live invoice-flow verified end-to-end.
 - Recovery mode: unit-tested, not triggered in production yet.
@@ -38,14 +37,14 @@ burned, supply verifiably reduced. Solscan: [swap](https://solscan.io/tx/qDQwNKV
 
 ### Added
 - `simulateSwap(connection, tx)` in `src/swap/execute.ts` — wraps `connection.simulateTransaction` with `sigVerify: false, replaceRecentBlockhash: true, innerInstructions: true`. Returns `SimulateSwapResult { ok, err, logs, computeUnitsConsumed, innerInstructions, tokenTransferCount }`. Lets adopters validate route resolution + compute cost before enabling a live cron — no SOL spent, no signature required.
-- `TOKEN_2022_PROGRAM_ID` exported from `src/payments/constants.ts`. `simulateSwap`'s `tokenTransferCount` covers both classic SPL-Token and Token-2022 — many Printr POB tokens (including $INKED) use the Token-2022 standard.
-- **Token-2022 support in `runBuybackCycle`** (`CycleConfig.tokenProgramId`) and `verifySwapOutput` (5th param). Defaults to classic SPL for backwards compatibility; pass `TOKEN_2022_PROGRAM_ID` from `@solana/spl-token` for Token-2022 mints. The flag threads through every ATA-touching call site: `getAssociatedTokenAddress` (ATA PDA derivation uses the program ID as a seed), `getAccount` (account parsing), and `createBurnInstruction` (program dispatch). Omitting it on a Token-2022 mint previously produced the wrong ATA address — `TokenAccountNotFoundError` every cycle on the recovery read, and an on-chain burn failure if somehow a swap landed. **Motivated by $INKED integration**, which is a Token-2022 mint. Any Printr POB token with `owner = TokenzQdB…` on its mint account needs this.
-- `scripts/verify-inked-graduation.ts` — Jupiter route classification + pool-depth probes at realistic cycle sizes. Confirms graduation state + slippage feasibility.
+- `TOKEN_2022_PROGRAM_ID` exported from `src/payments/constants.ts`. `simulateSwap`'s `tokenTransferCount` covers both classic SPL-Token and Token-2022 — many Printr POB tokens use the Token-2022 standard.
+- **Token-2022 support in `runBuybackCycle`** (`CycleConfig.tokenProgramId`) and `verifySwapOutput` (5th param). Defaults to classic SPL for backwards compatibility; pass `TOKEN_2022_PROGRAM_ID` from `@solana/spl-token` for Token-2022 mints. The flag threads through every ATA-touching call site: `getAssociatedTokenAddress` (ATA PDA derivation uses the program ID as a seed), `getAccount` (account parsing), and `createBurnInstruction` (program dispatch). Omitting it on a Token-2022 mint previously produced the wrong ATA address — `TokenAccountNotFoundError` every cycle on the recovery read, and an on-chain burn failure if somehow a swap landed. **Motivated by a Token-2022 adopter integration** that surfaced the ATA-derivation mismatch; any Printr POB token with `owner = TokenzQdB…` on its mint account needs this.
+- `scripts/verify-graduation.ts` — Jupiter route classification + pool-depth probes at realistic cycle sizes. Confirms graduation state + slippage feasibility.
 - `scripts/dry-run-swap.ts` — one-shot simulated swap against any mint. Parses inner instructions, prints a program-log dump, exits non-zero on program error.
 - `scripts/verify-printr-mechanism.ts` — queries Printr's `POST /v1/staking/list-positions-with-rewards` and `POST /v1/telecoin/buyback-burn-detail`. Reports aggregated claimable + claimed staker rewards for a given telecoin. **This is the correct way to verify POB fee distribution is live** — see Corrected below.
 
 ### Corrected
-- **POB model-1 fee distribution is async, not per-swap.** The README, `printr-tokenized-agent/SKILL.md`, `printr-swap/SKILL.md`, and their SCENARIOS.md companions previously implied a per-swap fee-hook transfer that could be detected in a swap's inner instructions. This was wrong — verified empirically against $INKED on 2026-04-23. POB model-1 tokens accrue fees via Meteora DAMM v2's standard LP-fee accounting, and Printr's SVM program (`T8HsGYv7sMk3kTnyaRqZrbRPuntYzdh12evXBkprint`) distributes accumulated SOL to stakers asynchronously. Every POB model-1 swap on-chain looks identical to a plain Meteora DAMM v2 swap. Doc passages + the `possibleFeeHookDetected` field have been removed; `SimulateSwapResult.tokenTransferCount` is retained as a generic route-sanity check with its framing corrected. See `printr-tokenized-agent/SKILL.md` §"How POB Model-1 Fee Distribution Actually Works" for the accurate mechanism.
+- **POB model-1 fee distribution is async, not per-swap.** The README, `printr-tokenized-agent/SKILL.md`, `printr-swap/SKILL.md`, and their SCENARIOS.md companions previously implied a per-swap fee-hook transfer that could be detected in a swap's inner instructions. This was wrong — verified empirically against a graduated Token-2022 POB telecoin on 2026-04-23. POB model-1 tokens accrue fees via Meteora DAMM v2's standard LP-fee accounting, and Printr's SVM program (`T8HsGYv7sMk3kTnyaRqZrbRPuntYzdh12evXBkprint`) distributes accumulated SOL to stakers asynchronously. Every POB model-1 swap on-chain looks identical to a plain Meteora DAMM v2 swap. Doc passages + the `possibleFeeHookDetected` field have been removed; `SimulateSwapResult.tokenTransferCount` is retained as a generic route-sanity check with its framing corrected. See `printr-tokenized-agent/SKILL.md` §"How POB Model-1 Fee Distribution Actually Works" for the accurate mechanism.
 
 ### Dependencies
 - `@neondatabase/serverless` bumped `^0.9.0` → `^1.1.0` (PR #4). Test suite still green against pg-mem; live-Neon validation remains adopter-side per `KNOWN_ISSUES.md`.
@@ -53,7 +52,7 @@ burned, supply verifiably reduced. Solscan: [swap](https://solscan.io/tx/qDQwNKV
 
 ## [0.1.0] — 2026-04-23
 
-First tagged release. **Pre-production** — the kit has not yet run a full buyback cycle on a live mainnet integration. Version `0.x` until at least one production cycle lands on the reference implementation ($INKED).
+First tagged release. **Pre-production** — at this point the kit had not yet run a full buyback cycle on a live mainnet integration. Version `0.x` until at least one production cycle lands on a live adopter. (That milestone was reached in 0.2.0 — see above.)
 
 ### Skills (this repo)
 - `printr-swap` — Jupiter quote / build / execute primitives.

@@ -77,7 +77,7 @@ Every threat is analyzed assuming:
 3. Verify server-side; only then accept `publicKey` as the session's bound wallet.
 4. Use `user_wallet = session.bound_wallet` when creating the invoice.
 
-INKED reference: `src/routes/api/ink/session-resolve.ts`.
+The core idea: `user_wallet` must come from the server's authenticated session state, never from a request body or query parameter. If your framework is SvelteKit / Next.js / Express, put the signature-verification step in a route-level middleware that runs before any handler under your `/api/pay/*` namespace.
 
 ### Rate limiting / DoS on invoice creation
 
@@ -100,6 +100,6 @@ INKED reference: `src/routes/api/ink/session-resolve.ts`.
 
 - Bugs in `@solana/web3.js`, Jupiter API, Printr on-chain program, Meteora pools.
 - Solana network reliability.
-- Business-logic attacks against consumer apps (e.g. $INKED agent endpoints).
+- Business-logic attacks against consumer apps built on top of the kit (the adopter's agent endpoints, paid-action gating logic, session handling, etc.).
 - Social engineering of signers.
 - Quantum attacks on ed25519.

@@ -108,7 +108,7 @@ Each skill's `description` field in its YAML frontmatter defines what triggers i
 **`printr-tokenized-agent`**
 
 - _"Set up a buyback-and-burn loop for my Printr POB token `<MINT>`"_
-- _"Build a tokenized agent on Printr, using $INKED as the reference"_
+- _"Run an hourly buyback-and-burn cron against my graduated Token-2022 POB mint"_
 - _"Compose `printr-swap` + `printr-agent-payments` into a full revenue loop"_
 
 ## Skill Structure
@@ -159,15 +159,17 @@ Every non-obvious claim in each `SKILL.md` carries a provenance marker so you ca
 
 Grep for `[derived]` in any SKILL.md to see exactly what's my call vs. what's upstream-grounded fact.
 
-## Reference Implementation (pre-launch)
+## Production track record
 
-[`github.com/AIEngineerX/inked`](https://github.com/AIEngineerX/inked) — **$INKED**, intended as the first production consumer. **Not yet running a live cycle** — the kit's code is test-covered (96 unit + integration tests across the three skills, live-validated against Jupiter + $INKED) but no buyback has been executed in production yet. This section will be updated with "live since" and cycle stats when $INKED's integration lands.
+The kit has run a live mainnet buyback cycle:
 
-| Project                       | Token                                          | Status                           | Notes                                 |
-| ----------------------------- | ---------------------------------------------- | -------------------------------- | ------------------------------------- |
-| [$INKED](https://inked.money) | `2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr` | Pre-launch (integration pending) | POB model #1 reference implementation |
+| Date         | Proof                                                                                                                                                                                                                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-04-24   | First production cycle on a graduated Token-2022 POB telecoin: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E) + [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz).  |
 
-Adopters: PR yourself into this table **after** you've run at least one production buyback cycle — please link to a burn tx on Solscan as evidence.
+## Adopters
+
+Open — no public adopters listed yet. PR yourself into this section **after** you've run at least one production buyback cycle using `@printr/agent-skills`. Please link to a burn tx on Solscan as evidence of a real cycle, plus your project's public landing page.
 
 ## Runtime compatibility
 
@@ -175,18 +177,18 @@ The kit depends transitively on `@solana/web3.js` and `@solana/spl-token`, which
 
 | Host / runtime                                 | Status                      | Notes                                                                                                                |
 | ---------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Netlify Functions** (Node 22.x)              | ✅ **Production-verified**   | Used by the $INKED reference implementation — see `github.com/AIEngineerX/inked` commit `e45cbfe` for wiring         |
+| **Netlify Functions** (Node 22.x)              | ✅ **Production-verified**   | Used by the 2026-04-24 live cycle (see "Production track record" above). Import from `@printr/agent-skills/tokenized-agent` into a Scheduled Function handler. |
 | Vercel Cron (Node)                             | ✅ Expected to work          | `vercel.json` crons; validate `CRON_SECRET` header                                                                   |
 | Railway / Fly / plain Node                     | ✅ Expected to work          | Standard Node 18+ runtime                                                                                            |
 | AWS Lambda (Node)                              | ✅ Expected to work          | Node 18+ runtime, import `from '@printr/agent-skills/tokenized-agent'`                                               |
 | GitHub Actions (scheduled)                     | ✅ Expected to work          | `ubuntu-latest` + `actions/setup-node@v4`                                                                            |
-| **Netlify Edge Functions** (Deno)              | ❌ **Not supported**         | Deno rejects `Dynamic require of "node:buffer"` inside `@solana/web3.js`. Move the cycle to a regular Netlify Function (Node) — see the $INKED reference implementation for the pattern |
+| **Netlify Edge Functions** (Deno)              | ❌ **Not supported**         | Deno rejects `Dynamic require of "node:buffer"` inside `@solana/web3.js`. Move the cycle to a regular Netlify Function (Node runtime) — the Netlify Functions row above is the production-verified path. |
 | Cloudflare Workers (default)                   | ⚠ Partial                   | Default V8 isolate has the same issues as Deno. `nodejs_compat` flag + a bundler that provides `node:buffer` polyfill may work — not verified live yet |
 | Vercel Edge Runtime                            | ❌ Not supported             | Same Node-API issue as Netlify Edge                                                                                  |
 
-### The $INKED reference implementation's inlining choice
+### A note on inlining vs importing
 
-`github.com/AIEngineerX/inked` inlines the kit's cycle logic directly in its Netlify Function (`netlify/functions/ink-buyback-background.mts`) rather than importing from `@printr/agent-skills`. The history on that commit (`e45cbfe`, "fix(ink-buyback): inline kit logic to avoid bundler issue") traces to a 0.1.0-era bundler quirk where Netlify's esbuild stripped the handler when the kit was imported. **0.2.0's compiled `dist/` removes that quirk** — future adopters can safely `import` instead of inlining. Inked's inlined code remains faithful to the 0.2.0 primitives; migration to a clean import is optional future work.
+An early-0.1.x adoption pattern inlined the `runBuybackCycle` body directly into a Netlify Function handler because Netlify's esbuild stripped the handler when `@printr/agent-skills` was imported raw from `src/`. **0.2.0's compiled `dist/` removes that quirk** — every supported runtime can now `import from '@printr/agent-skills/tokenized-agent'` directly. Any inlined 0.1.x code remains functionally equivalent to calling the 0.2.0 primitives; migrating to a clean import is optional cleanup, not a correctness fix.
 
 ## Runtime requirements
 

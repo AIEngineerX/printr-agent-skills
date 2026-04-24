@@ -540,15 +540,15 @@ export async function runBuybackCycle(cfg?: { dryRun?: boolean }): Promise<Cycle
 
 | Component | Status |
 |---|---|
-| `runBuybackCycle` — swap + burn cycle | **Production-verified** — first live cycle on $INKED 2026-04-24 (540M INKED burned, Solscan-confirmed) |
+| `runBuybackCycle` — swap + burn cycle | **Production-verified** — first live cycle on a graduated Token-2022 POB telecoin 2026-04-24. Solscan: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E) · [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz) |
 | `CycleConfig.tokenProgramId` — Token-2022 support | **Production-verified** — used by the first live cycle |
 | Recovery mode (swap-succeeds-burn-fails) | Unit-tested, not triggered in production yet |
-| `simulateSwap` dry-run | **Live-tested** on $INKED mainnet pre-deployment |
+| `simulateSwap` dry-run | **Live-tested** on mainnet against a graduated Token-2022 POB telecoin pre-deployment |
 | `autoClaim` phase (this skill, new in 0.2.0) | **Preview** — code complete, 106 tests pass, NOT yet run live. Blast-radius-widening (creator key on server); read §Funding sources carefully before enabling |
 
 ## How POB Model-1 Fee Distribution Actually Works
 
-**Important mechanism clarification — verified empirically 2026-04-23 against $INKED:**
+**Important mechanism clarification — verified empirically against a graduated Token-2022 POB telecoin on 2026-04-23:**
 
 POB Model-1 does **not** emit a per-swap fee-hook transfer. The mechanism is:
 
@@ -729,14 +729,15 @@ See `references/CUSTODY_PATTERNS.md` for the four supported patterns with blast-
 - **Projects without persistent DB** in production. The invoice + burn_event state is load-bearing; serverless instance restarts must not lose it.
 - **Treasuries too small to absorb occasional slippage.** At <$20k pool liquidity and 0.1 SOL cycle size, expect ~0.5% worst-case slippage per cycle. Smaller pools need smaller cycles.
 
-## Reference implementation
+## Production track record
 
-`github.com/AIEngineerX/inked` (the $INKED project) — the first production consumer of this skill. Relevant paths once shipped:
+The first production cycle ran against a graduated Token-2022 POB telecoin on 2026-04-24 — Solscan: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E), [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz). The cycle ran on a Netlify Scheduled Function (Node 22.x) backed by Neon Postgres for `burn_event` durability.
 
-- `src/routes/api/pay/invoice/+server.ts`, `src/routes/api/pay/verify/+server.ts` — from `printr-agent-payments`
-- `src/routes/api/admin/buyback/+server.ts` — this skill's `runBuybackCycle`
-- `src/lib/server/pay/*`, `src/lib/server/buyback/*`, `src/lib/server/burn/*`
-- `migrations/013_ink_payment.sql` — `payment_invoice` + `burn_event`
-- `src/routes/burn/+page.svelte` — public dashboard (convention, not required by this skill)
+A typical production deployment wires the same primitives through routes like:
 
-Adopters: PR yourself into this list once you've run a production cycle.
+- `/api/pay/invoice` + `/api/pay/verify` — the `printr-agent-payments` endpoints (SOL / USDC invoice creation + on-chain verification).
+- `/api/admin/buyback` — a scheduled endpoint that calls `runBuybackCycle()` and returns the `CycleResult` as JSON.
+- A single SQL migration installing both `payment_invoice` and `burn_event` (schemas in this skill's Database Schema section + in `printr-agent-payments/SKILL.md`).
+- An optional public `/burn` dashboard page reading recent `burn_event` rows for transparency — convention, not required.
+
+Adopters: open an issue or PR once you've run a production cycle so your burn tx can be linked from `README.md` §Production track record as additional evidence.

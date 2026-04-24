@@ -9,7 +9,7 @@ metadata:
 
 ## Maturity status
 
-**Unproven in production.** 96 unit tests cover invoice creation, memo generation, on-chain verification matchers (SOL + USDC), and replay-protection edges. Coverage is real but no production adopter has yet run a full user-payment → server-verify → paid-action-delivery flow in the wild. If you're the first, please open an issue with results. Matches the $INKED reference implementation's scope decision (POSITIONING.md §2 rules out pay-for-Ink-attention models), so this skill hasn't been exercised by the kit's primary adopter either.
+**Unproven in production.** 96 unit tests cover invoice creation, memo generation, on-chain verification matchers (SOL + USDC), and replay-protection edges. Coverage is real but no production adopter has yet run a full user-payment → server-verify → paid-action-delivery flow in the wild. The first live adopter of the tokenized-agent loop (see `README.md` §Production track record) deliberately did not ship paid agent actions as part of its initial surface, so this skill has not yet been exercised end-to-end by any known production deployment. If you're the first, please open an issue with results.
 
 ## Before Starting Work
 
