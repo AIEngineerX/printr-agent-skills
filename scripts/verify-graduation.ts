@@ -38,15 +38,11 @@ const PROBE_SIZES_LAMPORTS: ReadonlyArray<{ label: string; amount: bigint }> = [
 const TARGET_SLIPPAGE_BPS = 100; // 1%
 
 function fmtPct(pctStr: string): string {
-  const n = Number(pctStr);
-  if (!Number.isFinite(n)) return pctStr;
-  return `${(n * 100).toFixed(4)}%`;
+  return `${(Number(pctStr) * 100).toFixed(4)}%`;
 }
 
 function verdict(priceImpactPct: string): string {
-  const n = Number(priceImpactPct);
-  if (!Number.isFinite(n)) return '?';
-  const bps = n * 10_000;
+  const bps = Number(priceImpactPct) * 10_000;
   if (bps <= TARGET_SLIPPAGE_BPS / 2) return 'OK — well under slippage cap';
   if (bps <= TARGET_SLIPPAGE_BPS) return 'OK — within slippage cap';
   if (bps <= TARGET_SLIPPAGE_BPS * 2) return 'TIGHT — would fail at 100 bps slippage';
@@ -61,15 +57,7 @@ async function main() {
   console.log('─'.repeat(72));
 
   // 1. Graduation check — use the smallest probe for label classification.
-  let graduation: Awaited<ReturnType<typeof getPoolState>>;
-  try {
-    graduation = await getPoolState(WSOL_MINT, mint, PROBE_SIZES_LAMPORTS[0].amount);
-  } catch (e) {
-    console.error('FATAL: Jupiter quote failed — cannot classify pool.');
-    console.error(e instanceof Error ? e.message : e);
-    process.exit(1);
-  }
-
+  const graduation = await getPoolState(WSOL_MINT, mint, PROBE_SIZES_LAMPORTS[0].amount);
   const label = graduation.quote.routePlan[0]?.swapInfo.label ?? '(missing)';
   console.log(`[1] Graduation check`);
   console.log(`    Jupiter route label : "${label}"`);
@@ -116,21 +104,12 @@ async function main() {
 
   // 3. POB fee-distribution liveness — separate concern, requires Printr API.
   console.log('');
-  console.log(`[3] POB fee-distribution liveness — separate mechanism, separate script`);
+  console.log(`[3] POB fee-distribution liveness`);
   console.log('');
-  console.log(`    POB model-1 fee distribution is async: Meteora DAMM v2 accrues`);
-  console.log(`    LP fees on every swap, and Printr's SVM program distributes`);
-  console.log(`    accumulated rewards to stakers on its own schedule. Nothing`);
-  console.log(`    Printr-specific happens inside an individual swap tx — every`);
-  console.log(`    POB swap on-chain looks identical to a plain Meteora DAMM v2`);
-  console.log(`    swap. There is no per-swap hook to grep for.`);
-  console.log('');
-  console.log(`    To confirm POB distribution is live for this mint, run:`);
+  console.log(`    POB fees accrue to the DAMM v2 pool's LP state and are distributed`);
+  console.log(`    asynchronously by Printr's program — no per-swap signal to check here.`);
+  console.log(`    Verify liveness with:`);
   console.log(`      npx tsx scripts/verify-printr-mechanism.ts <TELECOIN_ID>`);
-  console.log('');
-  console.log(`    That script queries Printr's public API for staker positions`);
-  console.log(`    + claimable/claimed rewards and reports whether the mechanism`);
-  console.log(`    has accrued value for this telecoin. Non-zero = live.`);
 
   console.log('');
   console.log('─'.repeat(72));

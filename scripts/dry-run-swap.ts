@@ -47,25 +47,12 @@ const DEFAULT_AMOUNT_LAMPORTS = 100_000_000n; // 0.1 SOL — matches BUYBACK_THR
 const SLIPPAGE_BPS = 100;
 
 function parseArgs(): { amount: bigint; mint: string } {
-  const rawAmount = process.argv[2];
-  const rawMint = process.argv[3];
-
-  let amount = DEFAULT_AMOUNT_LAMPORTS;
-  if (rawAmount) {
-    try {
-      amount = BigInt(rawAmount);
-    } catch {
-      console.error(`Invalid amount: ${rawAmount}`);
-      process.exit(1);
-    }
-    if (amount <= 0n) {
-      console.error('Amount must be > 0');
-      process.exit(1);
-    }
+  const amount = process.argv[2] ? BigInt(process.argv[2]) : DEFAULT_AMOUNT_LAMPORTS;
+  if (amount <= 0n) {
+    console.error('Amount must be > 0');
+    process.exit(1);
   }
-
-  const mint = rawMint ?? EXAMPLE_MINT;
-  return { amount, mint };
+  return { amount, mint: process.argv[3] ?? EXAMPLE_MINT };
 }
 
 async function main() {
@@ -83,25 +70,12 @@ async function main() {
   console.log(`  Slippage    : ${SLIPPAGE_BPS} bps`);
   console.log('');
 
-  // Pick the simulated buyer. Public RPC requires the fee-payer to exist
-  // on-chain; Helius and other paid RPCs are more lenient. If BUYER_PUBKEY
-  // is set, use that (must be a real funded mainnet pubkey). Otherwise
-  // generate an ephemeral one, which works on Helius-class RPCs.
-  let buyerPubkey: PublicKey;
-  let buyerSource: string;
+  // Public RPC requires the fee-payer to exist on-chain; Helius-class RPCs
+  // tolerate ephemeral pubkeys. Set BUYER_PUBKEY to your funded mainnet
+  // pubkey when using the public RPC.
   const buyerEnv = process.env.BUYER_PUBKEY;
-  if (buyerEnv) {
-    try {
-      buyerPubkey = new PublicKey(buyerEnv);
-      buyerSource = 'BUYER_PUBKEY env';
-    } catch {
-      console.error(`Invalid BUYER_PUBKEY: ${buyerEnv}`);
-      process.exit(1);
-    }
-  } else {
-    buyerPubkey = Keypair.generate().publicKey;
-    buyerSource = 'ephemeral';
-  }
+  const buyerPubkey = buyerEnv ? new PublicKey(buyerEnv) : Keypair.generate().publicKey;
+  const buyerSource = buyerEnv ? 'BUYER_PUBKEY env' : 'ephemeral';
   console.log(`  Simulated buyer : ${buyerPubkey.toBase58()} (${buyerSource})`);
   console.log('');
 
@@ -113,7 +87,7 @@ async function main() {
     amount,
     slippageBps: SLIPPAGE_BPS,
   });
-  const routeLabel = quote.routePlan[0]?.swapInfo.label ?? '(missing)';
+  const routeLabel = quote.routePlan[0].swapInfo.label;
   console.log(`      route label      : "${routeLabel}"`);
   console.log(`      outAmount        : ${quote.outAmount}`);
   console.log(`      minimum          : ${quote.otherAmountThreshold}`);
@@ -212,8 +186,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error('');
-  console.error('FATAL:', e instanceof Error ? e.message : e);
-  if (e instanceof Error && e.stack) console.error(e.stack);
+  console.error(e);
   process.exit(1);
 });

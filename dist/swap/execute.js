@@ -52,28 +52,20 @@ export class SwapBelowMinimumError extends Error {
         this.minimum = minimum;
     }
 }
-/** Throws SwapBelowMinimumError if the ATA didn't receive at least minOutAmount
- *  — the tx can confirm without delivering expected output if a route partially
- *  fills. Any other thrown error (RPC timeout, ATA not found, etc.) indicates
- *  the read itself failed, not that the swap was slippage-busted.
+/** Throws SwapBelowMinimumError if the ATA didn't receive at least
+ *  minOutAmount — a tx can confirm without delivering expected output on a
+ *  partial-fill route. Any other thrown error (RPC timeout, ATA not found)
+ *  indicates the read itself failed, not a slippage bust.
  *
- *  `tokenProgramId` defaults to classic SPL Token. Pass
- *  `TOKEN_2022_PROGRAM_ID` from `@solana/spl-token` for Token-2022 mints —
- *  the ATA derivation and `getAccount` decoding both use the program ID as
- *  a seed / parsing discriminator, so classic-SPL defaults against a
- *  Token-2022 mint return the wrong ATA address and would falsely throw
- *  `TokenAccountNotFoundError` every cycle. **[Printr]** — many Printr POB
- *  tokens graduated post-mid-2025 are Token-2022.
+ *  `tokenProgramId` defaults to classic SPL. Pass `TOKEN_2022_PROGRAM_ID`
+ *  for Token-2022 mints — the program ID is a seed in ATA derivation and a
+ *  parsing key in `getAccount`. A mismatch derives the wrong ATA and throws
+ *  TokenAccountNotFoundError every cycle. **[Printr]**
  *
- *  `preSwapBalance` is the ATA's balance snapshotted BEFORE the swap
- *  submission. When provided, the slippage check compares the delta
- *  (`account.amount - preSwapBalance`) against minOutAmount rather than
- *  the absolute amount. Required if the ATA may have been pre-funded
- *  (e.g. by an earlier `/staking/claim-rewards` call that delivered
- *  telecoin rewards into the same ATA); without it, the check would pass
- *  trivially because the pre-existing balance already exceeds minOut,
- *  hiding a zero-fill swap. Omit on a cold ATA and the legacy absolute
- *  check runs. */
+ *  `preSwapBalance` switches the slippage check from absolute to delta
+ *  (`account.amount - preSwapBalance`). Required when the ATA may have been
+ *  pre-funded (e.g. by an earlier claim-rewards call) — without it the
+ *  absolute check passes trivially and hides a zero-fill swap. */
 export async function verifySwapOutput(connection, outputMint, owner, minOutAmount, tokenProgramId = SPL_TOKEN_PROGRAM_ID, preSwapBalance) {
     const ata = await getAssociatedTokenAddress(outputMint, owner, false, tokenProgramId);
     const account = await getAccount(connection, ata, 'confirmed', tokenProgramId);
@@ -88,11 +80,9 @@ export async function verifySwapOutput(connection, outputMint, owner, minOutAmou
     }
     return account.amount;
 }
-/** Run the swap tx through the RPC's simulateTransaction without submitting.
- *  No SOL spent, no signature required (`sigVerify: false`), fresh blockhash
- *  injected server-side (`replaceRecentBlockhash: true`). The returned shape
- *  mirrors `SimulatedTransactionResponse` with one added instrumentation
- *  field (`tokenTransferCount`). */
+/** Run the swap tx through `simulateTransaction` — no submission, no
+ *  signature required (`sigVerify: false`), fresh blockhash injected
+ *  (`replaceRecentBlockhash: true`). */
 export async function simulateSwap(connection, tx) {
     const result = await connection.simulateTransaction(tx, {
         sigVerify: false,

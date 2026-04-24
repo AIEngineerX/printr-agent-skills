@@ -105,17 +105,12 @@ interface BuybackBurnDetailResp {
 function atomicToHuman(a: AssetAmountResp | undefined): string {
   if (!a?.atomic) return '—';
   const decimals = a.decimals ?? 0;
-  try {
-    const big = BigInt(a.atomic);
-    if (decimals === 0) return big.toString();
-    const divisor = 10n ** BigInt(decimals);
-    const whole = big / divisor;
-    const frac = big % divisor;
-    const fracStr = frac.toString().padStart(decimals, '0').slice(0, 6).replace(/0+$/, '');
-    return fracStr ? `${whole}.${fracStr}` : whole.toString();
-  } catch {
-    return a.atomic;
-  }
+  const big = BigInt(a.atomic);
+  if (decimals === 0) return big.toString();
+  const divisor = 10n ** BigInt(decimals);
+  const whole = big / divisor;
+  const fracStr = (big % divisor).toString().padStart(decimals, '0').slice(0, 6).replace(/0+$/, '');
+  return fracStr ? `${whole}.${fracStr}` : whole.toString();
 }
 
 function sumAssets(list: (AssetAmountResp | undefined)[]): AssetAmountResp | null {
@@ -125,14 +120,10 @@ function sumAssets(list: (AssetAmountResp | undefined)[]): AssetAmountResp | nul
   let hasAny = false;
   for (const a of list) {
     if (!a?.atomic) continue;
-    try {
-      totalAtomic += BigInt(a.atomic);
-      decimals ??= a.decimals;
-      asset ??= a.asset;
-      hasAny = true;
-    } catch {
-      /* skip malformed */
-    }
+    totalAtomic += BigInt(a.atomic);
+    decimals ??= a.decimals;
+    asset ??= a.asset;
+    hasAny = true;
   }
   if (!hasAny) return null;
   return { atomic: totalAtomic.toString(), decimals, asset };
@@ -151,16 +142,10 @@ async function main() {
 
   // [1] Aggregate stake + reward state for this telecoin.
   console.log('[1] list-positions-with-rewards');
-  let positions: ListPositionsResp;
-  try {
-    positions = await printrPost<ListPositionsResp>('/staking/list-positions-with-rewards', {
-      telecoin_ids: [telecoinId],
-      limit: 100,
-    });
-  } catch (e) {
-    console.error(`      FAILED: ${e instanceof Error ? e.message : e}`);
-    process.exit(1);
-  }
+  const positions = await printrPost<ListPositionsResp>('/staking/list-positions-with-rewards', {
+    telecoin_ids: [telecoinId],
+    limit: 100,
+  });
 
   const count = positions.positions.length;
   console.log(`      positions returned           : ${count}${
@@ -193,17 +178,11 @@ async function main() {
 
   // [2] Historical buyback+burn activity on this telecoin.
   console.log('[2] buyback-burn-detail');
-  let bb: BuybackBurnDetailResp;
-  try {
-    bb = await printrPost<BuybackBurnDetailResp>('/telecoin/buyback-burn-detail', {
-      telecoin_id: telecoinId,
-      chain: SOLANA_CAIP2,
-      limit: 20,
-    });
-  } catch (e) {
-    console.error(`      FAILED: ${e instanceof Error ? e.message : e}`);
-    process.exit(1);
-  }
+  const bb = await printrPost<BuybackBurnDetailResp>('/telecoin/buyback-burn-detail', {
+    telecoin_id: telecoinId,
+    chain: SOLANA_CAIP2,
+    limit: 20,
+  });
 
   console.log(`      total_trades                 : ${bb.total_trades}`);
   console.log(`      total_burned                 : ${atomicToHuman(bb.total_burned)}`);
@@ -258,8 +237,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error('');
-  console.error('FATAL:', e instanceof Error ? e.message : e);
-  if (e instanceof Error && e.stack) console.error(e.stack);
+  console.error(e);
   process.exit(1);
 });

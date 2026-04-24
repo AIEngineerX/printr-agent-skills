@@ -56,11 +56,9 @@ async function main() {
   const connection = new Connection(requireEnv('SOLANA_RPC_URL'), 'confirmed');
   const hotKeypair = Keypair.fromSecretKey(bs58.decode(requireEnv('TREASURY_HOT_PRIVATE_KEY')));
   const agentTokenMint = new PublicKey(requireEnv('AGENT_TOKEN_MINT'));
-  const tokenProgramId =
-    (process.env.AGENT_TOKEN_PROGRAM ?? '').toLowerCase().startsWith('2022') ||
-    process.env.AGENT_TOKEN_PROGRAM?.toLowerCase() === 'token-2022'
-      ? TOKEN_2022_PROGRAM_ID
-      : TOKEN_PROGRAM_ID;
+  const tokenProgramId = (process.env.AGENT_TOKEN_PROGRAM ?? '').toLowerCase().includes('2022')
+    ? TOKEN_2022_PROGRAM_ID
+    : TOKEN_PROGRAM_ID;
 
   const sql = neon(requireEnv('DATABASE_URL'));
   const pool = makeNeonPool(sql);

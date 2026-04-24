@@ -1,8 +1,7 @@
 // Printr staking API client — handles the owner-signed claim flow.
 //
-// Auth uses the public JWT embedded in @printr/sdk (verified 2026-04-17
-// in docs/references/printr-api/FINDINGS.md of the reference
-// implementation repo). Adopters with a partner key can pass it via
+// Auth defaults to the public JWT embedded in @printr/sdk (Apache-2.0,
+// shared rate-limit pool). Adopters with a partner key can override via
 // options.apiKey.
 //
 // API surface used:
@@ -153,19 +152,12 @@ export interface ClaimResult {
 /**
  * Claim rewards from stake positions. Owner must have signing authority on
  * each position (Printr's program checks this on-chain). Returns the tx
- * signature plus the amounts that were claimable immediately before the
- * claim (read from Printr's API before submission — these are "what the
- * claim was built for", not necessarily what lands, but the two should
- * match modulo fee / rounding).
+ * signature plus the pre-claim claimable amounts — "what the claim was
+ * built for", should match on-chain delivery modulo fees / rounding.
  *
- * The Solana instruction bytes are server-encoded by Printr (their SVM
- * IDL is not public) — this wrapper takes those bytes, builds a
- * VersionedTransaction, signs with the owner keypair, submits, confirms.
- *
- * @param args.owner       keypair whose pubkey owns the positions
- * @param args.positionIds array of position addresses (from StakePositionInfo.position)
- * @param args.connection  Solana RPC
- * @param options          optional Printr API overrides (base URL, partner key)
+ * Printr server-encodes the Solana instruction bytes (SVM IDL not public);
+ * this wrapper assembles them into a VersionedTransaction, signs, submits,
+ * confirms.
  */
 export async function claimRewards(
   args: {
@@ -180,8 +172,7 @@ export async function claimRewards(
   }
 
   // Snapshot rewards-pre-claim so we can report what the claim delivered.
-  // Filter server-side to only these position IDs would be nicer, but the
-  // list endpoint filters by telecoin_ids not position_ids, so we pull by
+  // The list endpoint filters by telecoin_ids, not position_ids — pull by
   // owner and filter client-side.
   const ownerCaip = solanaCaip10(args.owner.publicKey);
   const listResp = await listPositionsWithRewards(
@@ -202,10 +193,6 @@ export async function claimRewards(
     options,
   );
 
-  // Assemble the Solana transaction from Printr's server-encoded ixs.
-  // Each ix has program_id (base58), accounts (pubkey + signer/writable
-  // flags), and data (base64). VersionedTransaction accepts this shape
-  // via TransactionMessage.compileToV0Message.
   const instructions = claimResp.tx_payload.ixs.map((ix) => ({
     programId: new PublicKey(ix.program_id),
     keys: ix.accounts.map((a) => ({
@@ -288,11 +275,9 @@ export async function claimAllAboveThreshold(
     options,
   );
 
-  const claimable = list.positions.filter((p) => {
-    const atomic = p.claimable_quote_rewards?.atomic;
-    if (!atomic) return false;
-    return BigInt(atomic) > 0n;
-  });
+  const claimable = list.positions.filter(
+    (p) => BigInt(p.claimable_quote_rewards?.atomic ?? '0') > 0n,
+  );
 
   const totalLamports = claimable.reduce(
     (acc, p) => acc + BigInt(p.claimable_quote_rewards?.atomic ?? '0'),

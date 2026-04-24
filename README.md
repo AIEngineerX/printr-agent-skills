@@ -19,7 +19,7 @@ Each skill auto-triggers in any compatible agent CLI when you describe a matchin
 
 ## Why this exists for Printr
 
-Printr POB tokens live on Meteora DBC (bonding curve) and migrate to Meteora DAMM v2 on graduation. This kit builds an agent-revenue → buyback → burn loop directly on that stack: Jupiter for routing, SPL `burn` for supply reduction, memo-matched on-chain invoice verification for payment acceptance. On top of Printr's POB model the mechanic has a second-order effect: **buyback swaps route through the DAMM v2 pool, adding to LP-fee accrual that Printr's POB program periodically distributes to stakers in SOL**. The buyback doesn't pay stakers *during* the swap (POB distribution is async, not a per-swap hook) — but each cycle still both reduces supply AND contributes to the fee pool that downstream stakers draw from. Verify your target telecoin's POB mechanism is live before enabling a cron via `scripts/verify-printr-mechanism.ts`.
+Printr POB tokens live on Meteora DBC (bonding curve) and migrate to Meteora DAMM v2 on graduation. This kit builds an agent-revenue → buyback → burn loop on that stack: Jupiter for routing, SPL `burn` for supply reduction, memo-matched on-chain invoice verification for payments. Second-order effect on POB model-1 tokens: **buyback swaps deepen DAMM v2 LP-fee accrual that Printr's POB program distributes to stakers asynchronously** — supply shrinks AND the pool stakers draw from grows. Distribution is NOT a per-swap hook. Verify mechanism liveness via `scripts/verify-printr-mechanism.ts` before enabling a cron.
 
 ## Available Skills
 
@@ -161,19 +161,15 @@ Grep for `[derived]` in any SKILL.md to see exactly what's my call vs. what's up
 
 ## Production track record
 
-The kit has run a live mainnet buyback cycle:
-
-| Date         | Proof                                                                                                                                                                                                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-04-24   | First production cycle on a graduated Token-2022 POB telecoin: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E) + [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz).  |
+First live mainnet cycle ran 2026-04-24 against a graduated Token-2022 POB telecoin: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E) · [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz).
 
 ## Adopters
 
-Open — no public adopters listed yet. PR yourself into this section **after** you've run at least one production buyback cycle using `@printr/agent-skills`. Please link to a burn tx on Solscan as evidence of a real cycle, plus your project's public landing page.
+No public adopters listed yet. PR yourself in after running a production cycle — include your burn tx on Solscan as evidence.
 
 ## Runtime compatibility
 
-The kit depends transitively on `@solana/web3.js` and `@solana/spl-token`, which use Node APIs (`node:buffer`, dynamic `require`). This imposes runtime constraints. As of 0.2.0 the kit publishes a compiled `dist/` so bundler-TS-resolution is no longer an adopter concern; the remaining compatibility axis is the runtime itself.
+`@solana/web3.js` and `@solana/spl-token` use Node APIs (`node:buffer`, dynamic `require`) — the kit only runs on Node-compatible runtimes. As of 0.2.0 the kit publishes a compiled `dist/`, so bundler TS-resolution is no longer an adopter concern.
 
 | Host / runtime                                 | Status                      | Notes                                                                                                                |
 | ---------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
@@ -188,7 +184,7 @@ The kit depends transitively on `@solana/web3.js` and `@solana/spl-token`, which
 
 ### A note on inlining vs importing
 
-An early-0.1.x adoption pattern inlined the `runBuybackCycle` body directly into a Netlify Function handler because Netlify's esbuild stripped the handler when `@printr/agent-skills` was imported raw from `src/`. **0.2.0's compiled `dist/` removes that quirk** — every supported runtime can now `import from '@printr/agent-skills/tokenized-agent'` directly. Any inlined 0.1.x code remains functionally equivalent to calling the 0.2.0 primitives; migrating to a clean import is optional cleanup, not a correctness fix.
+Early-0.1.x adopters sometimes inlined `runBuybackCycle` into a Netlify Function handler because esbuild stripped the handler when importing from `src/`. 0.2.0's compiled `dist/` fixes that — import from `@printr/agent-skills/tokenized-agent` directly.
 
 ## Runtime requirements
 

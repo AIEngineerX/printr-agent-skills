@@ -62,19 +62,12 @@ export interface ClaimResult {
 /**
  * Claim rewards from stake positions. Owner must have signing authority on
  * each position (Printr's program checks this on-chain). Returns the tx
- * signature plus the amounts that were claimable immediately before the
- * claim (read from Printr's API before submission — these are "what the
- * claim was built for", not necessarily what lands, but the two should
- * match modulo fee / rounding).
+ * signature plus the pre-claim claimable amounts — "what the claim was
+ * built for", should match on-chain delivery modulo fees / rounding.
  *
- * The Solana instruction bytes are server-encoded by Printr (their SVM
- * IDL is not public) — this wrapper takes those bytes, builds a
- * VersionedTransaction, signs with the owner keypair, submits, confirms.
- *
- * @param args.owner       keypair whose pubkey owns the positions
- * @param args.positionIds array of position addresses (from StakePositionInfo.position)
- * @param args.connection  Solana RPC
- * @param options          optional Printr API overrides (base URL, partner key)
+ * Printr server-encodes the Solana instruction bytes (SVM IDL not public);
+ * this wrapper assembles them into a VersionedTransaction, signs, submits,
+ * confirms.
  */
 export declare function claimRewards(args: {
     owner: Keypair;

@@ -731,13 +731,13 @@ See `references/CUSTODY_PATTERNS.md` for the four supported patterns with blast-
 
 ## Production track record
 
-The first production cycle ran against a graduated Token-2022 POB telecoin on 2026-04-24 — Solscan: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E), [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz). The cycle ran on a Netlify Scheduled Function (Node 22.x) backed by Neon Postgres for `burn_event` durability.
+First production cycle: 2026-04-24, graduated Token-2022 POB telecoin, Netlify Scheduled Function (Node 22.x) + Neon Postgres. Solscan: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E) · [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz).
 
-A typical production deployment wires the same primitives through routes like:
+Typical deployment:
 
-- `/api/pay/invoice` + `/api/pay/verify` — the `printr-agent-payments` endpoints (SOL / USDC invoice creation + on-chain verification).
-- `/api/admin/buyback` — a scheduled endpoint that calls `runBuybackCycle()` and returns the `CycleResult` as JSON.
-- A single SQL migration installing both `payment_invoice` and `burn_event` (schemas in this skill's Database Schema section + in `printr-agent-payments/SKILL.md`).
-- An optional public `/burn` dashboard page reading recent `burn_event` rows for transparency — convention, not required.
+- `/api/pay/invoice` + `/api/pay/verify` — `printr-agent-payments` endpoints
+- `/api/admin/buyback` — scheduled endpoint calling `runBuybackCycle()`
+- One migration installing both `payment_invoice` + `burn_event`
+- Optional `/burn` dashboard reading recent rows for public transparency
 
-Adopters: open an issue or PR once you've run a production cycle so your burn tx can be linked from `README.md` §Production track record as additional evidence.
+Adopters: open a PR linking your first burn tx so it can be added to `README.md` §Production track record.

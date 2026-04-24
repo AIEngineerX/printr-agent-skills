@@ -19,22 +19,19 @@ import type { QueryablePool } from '../payments/verify.js';
 
 export const FEE_RESERVE_LAMPORTS = 10_000_000n; // 0.01 SOL held back for tx fees
 
-/** Auto-claim configuration. When set on CycleConfig, runBuybackCycle
- *  adds a Phase 0.5 before the swap that calls Printr's
- *  /v1/staking/claim-rewards for the hot keypair's positions, topping up
- *  the hot wallet's SOL balance. **The hot keypair thus doubles as the
- *  position owner** — blast radius includes all staked principal after
- *  lock expiry. See `printr-tokenized-agent/SKILL.md` §Auto-claim for
- *  the custody tradeoff vs. the manual-sweep default. */
+/** When set on CycleConfig, runBuybackCycle adds a Phase 0.5 before the swap
+ *  that claims POB stake rewards for the hot keypair's positions. The hot
+ *  keypair thus doubles as the position owner — blast radius includes all
+ *  staked principal after lock expiry. See `printr-tokenized-agent/SKILL.md`
+ *  §Auto-claim for the tradeoff vs. the manual-sweep default. */
 export interface AutoClaimConfig {
-  /** Restrict claims to these Printr telecoin_ids (0x…). When omitted, any
-   *  position the owner holds on any telecoin is eligible — usually you
-   *  want the single telecoin for your buyback. */
+  /** Restrict claims to these telecoin_ids (0x…). Omit to claim across every
+   *  telecoin the owner holds a position on. */
   telecoinIds?: string[];
-  /** Only claim if the aggregate claimable SOL across matching positions
-   *  is >= this many lamports. Avoids spending tx fees on dust claims. */
+  /** Skip the claim tx unless aggregate claimable SOL across matching
+   *  positions meets this threshold — avoids spending fees on dust. */
   minClaimableLamports: bigint;
-  /** Optional Printr API overrides (base URL, partner key, timeout). */
+  /** Optional Printr API overrides. */
   printrOptions?: PrintrClientOptions;
 }
 
@@ -47,42 +44,23 @@ export interface CycleConfig {
   maxPerCycleLamports: bigint;
   slippageBps: number;
   /** SPL Token program ID that owns the agent token mint. Defaults to
-   *  classic SPL (`TokenkegQ...`). Pass `TOKEN_2022_PROGRAM_ID` from
-   *  `@solana/spl-token` for Token-2022 mints — the ATA PDA derivation
-   *  and `getAccount`/`createBurnInstruction` decoding all use the program
-   *  ID as a seed or dispatch key. Omitting it on a Token-2022 mint
-   *  produces the wrong ATA address (TokenAccountNotFoundError every
-   *  cycle) and a burn ix addressed to the wrong program (on-chain
-   *  failure). **[Printr]** Many POB tokens graduated post-mid-2025 are
-   *  Token-2022. */
+   *  classic SPL (`TokenkegQ...`). Pass `TOKEN_2022_PROGRAM_ID` for
+   *  Token-2022 mints — the program ID is a seed in ATA derivation and a
+   *  dispatch key in `getAccount` / `createBurnInstruction`, so a
+   *  mismatch derives the wrong ATA and addresses the burn ix to the
+   *  wrong program. **[Printr]** Many POB tokens graduated post-mid-2025
+   *  are Token-2022. */
   tokenProgramId?: PublicKey;
-  /** Optional auto-claim phase. When set, the cycle claims stake rewards
-   *  before checking the SOL threshold, effectively funding itself from
-   *  the owner's accrued POB yield. Omit for manual-sweep mode (safer —
-   *  the hot wallet doesn't own stake positions). See `AutoClaimConfig`. */
+  /** When set, Phase 0.5 claims POB stake rewards before the threshold
+   *  check — funds the cycle from accrued yield. Widens blast radius (hot
+   *  keypair must own the positions). See `AutoClaimConfig`. */
   autoClaim?: AutoClaimConfig;
 }
 
 export async function findRecoveryCycle(
   cfg: CycleConfig,
 ): Promise<{ id: number; amountToBurn: bigint } | null> {
-  const programId = cfg.tokenProgramId ?? TOKEN_PROGRAM_ID;
-  const ata = await getAssociatedTokenAddress(
-    cfg.agentTokenMint,
-    cfg.hotKeypair.publicKey,
-    false,
-    programId,
-  );
-
-  let ataBalance: bigint;
-  try {
-    const acct = await getAccount(cfg.connection, ata, 'confirmed', programId);
-    ataBalance = acct.amount;
-  } catch (e) {
-    if (e instanceof TokenAccountNotFoundError) return null;
-    throw e;
-  }
-
+  const ataBalance = await readAtaBalance(cfg);
   if (ataBalance === 0n) return null;
 
   const { rows } = await cfg.pool.query(
@@ -111,9 +89,8 @@ export type StartCycleResult =
       swapSig: string;
       /** Tokens delivered by the swap itself (post − pre ATA delta). */
       bought: bigint;
-      /** Total ATA balance after the swap (bought + any pre-existing,
-       *  e.g. telecoin rewards claimed earlier this cycle). This is what
-       *  should be passed to burnAgentTokens to wipe the ATA. */
+      /** Full ATA balance after the swap (bought + any pre-existing, e.g.
+       *  claimed telecoin rewards). Pass this to burnAgentTokens to wipe the ATA. */
       totalAtaAmount: bigint;
       solIn: bigint;
     };
@@ -129,11 +106,9 @@ export async function startCycle(cfg: CycleConfig): Promise<StartCycleResult> {
     return { action: 'noop', reason: 'below_threshold', hotBalance: hotBalanceLamports };
   }
 
-  // Snapshot the agent-token ATA balance BEFORE the swap so the slippage
-  // check below compares delta (post - pre), not absolute. When auto-claim
-  // is enabled the ATA may be pre-funded with telecoin rewards; without
-  // this snapshot, a zero-fill swap would silently pass because pre+0
-  // already exceeds minOut.
+  // Snapshot the ATA balance BEFORE the swap so the slippage check compares
+  // the delta (post - pre), not absolute. Required when autoClaim may have
+  // pre-funded the ATA — otherwise a zero-fill swap passes trivially.
   const preSwapBalance = await readAtaBalance(cfg);
 
   const quote = await quoteSwap({
@@ -150,13 +125,11 @@ export async function startCycle(cfg: CycleConfig): Promise<StartCycleResult> {
 
   const swapSig = await executeServerSwap(cfg.connection, tx, lastValidBlockHeight, cfg.hotKeypair);
 
-  // Record the swap_done row IMMEDIATELY after swap confirmation. Any failure
-  // past this point leaves a durable row: RPC errors inside verifySwapOutput
-  // keep status='swap_done' so findRecoveryCycle picks up the ATA balance next
-  // tick; a real slippage bust is caught below and flips the row to 'failed'
-  // so recovery does not auto-burn a partial fill without operator review.
-  // agent_token_bought is seeded with the quote's minimum and rewritten with
-  // the verified amount on the happy path.
+  // Record swap_done immediately post-confirmation so any later failure is
+  // recoverable: RPC errors inside verifySwapOutput keep status='swap_done'
+  // for next-tick recovery; a real slippage bust flips the row to 'failed'
+  // so recovery doesn't auto-burn a partial fill. agent_token_bought is
+  // seeded with the quote minimum and rewritten with the verified amount.
   const inserted = await cfg.pool.query(
     `INSERT INTO burn_event
        (sol_in_lamports, agent_token_bought, agent_token_burned, swap_sig, status)
@@ -186,10 +159,8 @@ export async function startCycle(cfg: CycleConfig): Promise<StartCycleResult> {
     throw e;
   }
 
-  // Record the delta as agent_token_bought for accounting accuracy. The
-  // burn amount passed to burnAgentTokens will be the TOTAL ATA balance
-  // (includes any pre-existing telecoin rewards), so the burn naturally
-  // wipes the ATA regardless of source.
+  // bought = swap delivery; totalAtaAmount = delivery + any pre-existing
+  // (e.g. claimed telecoin rewards). Burning totalAtaAmount wipes the ATA.
   const bought = totalAtaAmount - preSwapBalance;
   await cfg.pool.query(`UPDATE burn_event SET agent_token_bought = $1 WHERE id = $2`, [
     bought.toString(),
@@ -300,10 +271,9 @@ export type CycleResult =
       burnSig: string;
       solIn: bigint;
       amountBurned: bigint;
-      /** Populated when autoClaim was configured AND a claim ran this
-       *  cycle. Claim happens before the swap, so `solIn` already reflects
-       *  any claim-boosted SOL balance. amountBurned includes any claimed
-       *  telecoin rewards that were in the ATA alongside the swap output. */
+      /** Populated when autoClaim was configured AND a claim ran this cycle.
+       *  solIn already reflects the claim-boosted SOL balance; amountBurned
+       *  includes any claimed telecoin rewards that were in the ATA. */
       claim?: ClaimPhaseResult;
     }
   | {
@@ -313,10 +283,8 @@ export type CycleResult =
       claim?: ClaimPhaseResult;
     };
 
-/** Execute the claim phase. Returns the summary, or null if nothing was
- *  claimable above threshold (no tx submitted). Errors bubble up — the
- *  orchestrator's try/catch wraps them into a 'failed' CycleResult with
- *  stage='claim'. */
+/** Run the claim phase. Null when autoClaim is off OR nothing was above
+ *  threshold. Errors bubble up to runBuybackCycle's 'failed' handler. */
 async function runClaimPhase(cfg: CycleConfig): Promise<ClaimPhaseResult | null> {
   if (!cfg.autoClaim) return null;
   const result = await claimAllAboveThreshold(
@@ -342,12 +310,9 @@ export async function runBuybackCycle(cfg: CycleConfig): Promise<CycleResult> {
   let claim: ClaimPhaseResult | null = null;
 
   try {
-    // Phase 0 — recovery takes precedence. If the hot ATA has leftover
-    // tokens from a previous cycle's swap-succeeded-burn-failed state,
-    // burn those first. Do not run claim here — recovery uses existing
-    // ATA balance; we don't want to mix in fresh claim-delivered tokens
-    // until the prior swap's output is resolved. The next cycle tick
-    // after recovery picks up claim + normal flow.
+    // Phase 0 — recovery. Burn leftover tokens from a prior
+    // swap-succeeded-burn-failed state before running anything else.
+    // Claim stays OFF here to avoid mixing fresh rewards into a recovery burn.
     const recovery = await findRecoveryCycle(cfg);
     if (recovery) {
       stage = 'burn';
@@ -360,16 +325,12 @@ export async function runBuybackCycle(cfg: CycleConfig): Promise<CycleResult> {
       };
     }
 
-    // Phase 0.5 — optional auto-claim. Happens AFTER recovery (so we
-    // don't mix claim output into a recovery burn) but BEFORE the
-    // threshold check (so the claim's SOL can lift us over the threshold
-    // when the hot wallet would otherwise no-op).
+    // Phase 0.5 — autoClaim. After recovery, before threshold check, so
+    // claimed SOL can lift the wallet over the threshold.
     stage = 'claim';
     claim = await runClaimPhase(cfg);
 
-    // Phase 1 — swap. startCycle snapshots the ATA pre-swap so if the
-    // claim deposited telecoin rewards into the same ATA, the slippage
-    // check still works.
+    // Phase 1 — swap.
     stage = 'swap';
     const start = await startCycle(cfg);
     if (start.action === 'noop') {
@@ -381,10 +342,8 @@ export async function runBuybackCycle(cfg: CycleConfig): Promise<CycleResult> {
       };
     }
 
-    // Phase 2 — burn. Pass totalAtaAmount (not bought) so any claimed
-    // telecoin rewards in the ATA are burned alongside the swap output.
-    // This is the supply-reduction double-hit: swap burns X, claim adds
-    // Y, single burn ix destroys X+Y.
+    // Phase 2 — burn totalAtaAmount (swap delivery + any claimed telecoin
+    // rewards sitting in the same ATA) in a single ix.
     stage = 'burn';
     const burnSig = await burnAgentTokens(cfg, start.cycleId, start.totalAtaAmount);
     return {
