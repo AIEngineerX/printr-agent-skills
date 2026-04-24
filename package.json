@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./swap": "./src/swap/index.ts",
     "./payments": "./src/payments/index.ts",
+    "./staking": "./src/staking/index.ts",
     "./tokenized-agent": "./src/tokenized-agent/index.ts"
   },
   "scripts": {

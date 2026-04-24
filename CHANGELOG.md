@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+### Added — staking claim primitive + autoClaim in runBuybackCycle
+
+- **New `@printr/agent-skills/staking` module** — `listPositionsWithRewards`, `claimRewards`, `claimAllAboveThreshold`. Wraps Printr's `/v1/staking/list-positions-with-rewards` + `/v1/staking/claim-rewards`, signs the server-encoded claim tx with the owner keypair, submits + confirms. Public JWT default auth, partner key override via `options.apiKey`.
+- **`CycleConfig.autoClaim?`** — optional field on runBuybackCycle. When set, cycle runs a Phase 0.5 between recovery and swap that claims the owner's rewards above `minClaimableLamports`. Funds the cycle from the owner's accrued POB yield — fully-autonomous loop, no manual sweep. Trades blast radius (hot keypair now owns stake positions) for removing the weekly ritual.
+- **`verifySwapOutput(...)` 6th param `preSwapBalance?`** — when supplied, slippage check compares the post-swap ATA delta (`account.amount - preSwapBalance`) against `minOutAmount` rather than the absolute amount. Required when autoClaim may have pre-funded the ATA with telecoin rewards; without it a zero-fill swap would silently pass because claim-delivered balance already exceeds minOut.
+- **`StartCycleResult.swapped` gains `totalAtaAmount: bigint`** — the full ATA balance after the swap (bought + any pre-existing). `runBuybackCycle` now passes `totalAtaAmount` to `burnAgentTokens` when autoClaim is on, so claimed telecoin rewards are burned in the same ix as the swap output. `bought` still reports just the swap's delivery for accounting.
+- **`CycleResult` variants `completed`/`noop`/`failed` gain optional `claim?: ClaimPhaseResult`** — null when autoClaim is off OR nothing was above threshold; populated with `{ signature, claimedLamports, claimedTelecoinAtomic, positionsClaimed }` when a claim ran. The `failed` variant's `stage` union also gains `'claim'` to distinguish claim-phase failures from swap/burn failures.
+- **`./staking` package export + new tests** — 8 new tests covering CAIP-10 formatting, API call shape, auth header selection, threshold filtering, and empty-input guards. Total 106/106 passing.
+
 ### Added
 - `simulateSwap(connection, tx)` in `src/swap/execute.ts` — wraps `connection.simulateTransaction` with `sigVerify: false, replaceRecentBlockhash: true, innerInstructions: true`. Returns `SimulateSwapResult { ok, err, logs, computeUnitsConsumed, innerInstructions, tokenTransferCount }`. Lets adopters validate route resolution + compute cost before enabling a live cron — no SOL spent, no signature required.
 - `TOKEN_2022_PROGRAM_ID` exported from `src/payments/constants.ts`. `simulateSwap`'s `tokenTransferCount` covers both classic SPL-Token and Token-2022 — many Printr POB tokens (including $INKED) use the Token-2022 standard.

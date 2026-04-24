@@ -63,11 +63,84 @@ Rules 1–6 are standard Solana / payment-skill practice **[pattern]**. Rule 7 i
 
 ## Composes With
 
-- **`printr-agent-payments`** — `createInvoice`, `verifyInvoiceWithRetries`, invoice-gate logic. Required.
+- **`printr-agent-payments`** — `createInvoice`, `verifyInvoiceWithRetries`, invoice-gate logic. Required when the funding source is user payments.
 - **`printr-swap`** — `loadHotKeypair`, `quoteSwap`, `buildSwapTransaction`, `executeServerSwap`, `verifySwapOutput`. Required.
+- **`@printr/agent-skills/staking`** — `listPositionsWithRewards`, `claimRewards`, `claimAllAboveThreshold`. Required when `autoClaim` is enabled — funds the cycle from the owner's accrued POB yield instead of user payments.
 - **`printr-eco`** — ecosystem knowledge (POB mechanics, telecoin_id, fee model #1). Recommended for background context, not required at runtime.
 
-Your project's code calls functions from both sub-skills. If you have not implemented them yet, invoke each sub-skill first and work bottom-up.
+Your project's code calls functions from the sub-skills. If you have not implemented them yet, invoke each sub-skill first and work bottom-up.
+
+## Funding sources — two patterns
+
+The cycle needs SOL in the hot wallet to run. Two architectures depending on where that SOL comes from:
+
+### A. Payment-funded (the classic pump.fun pattern)
+
+Users pay the agent for actions via `printr-agent-payments`. Revenue accumulates in the hot wallet. Cron swaps + burns.
+
+- **Keys on server:** hot wallet only
+- **Blast radius if compromised:** ≤ one cycle of SOL
+- **Manual ritual:** none — users feed the loop via paid actions
+- **Use `autoClaim`:** no, leave it unset
+
+### B. Stake-reward-funded (POB-native pattern)
+
+The owner's own staked position accrues SOL rewards from POB fee distribution (`docs/references/printr-api/V2_FEATURES.md` §POB mechanics). The cycle claims those rewards at the top of each run, funding itself from the owner's passive yield.
+
+- **Keys on server:** `hotKeypair` is also the position owner
+- **Blast radius if compromised:** everything staked + all claimable rewards + stake principal after lock expiry
+- **Manual ritual:** none — fully autonomous
+- **Use `autoClaim`:** yes (see configuration below)
+
+Pattern B is an upgrade over the classic pump.fun loop for POB tokens specifically: stake rewards are continuous, creator-attributable, and explicitly part of Printr's fee-distribution design. The cost is widening the blast radius. Pattern A stays strictly better for adopters with significant staked principal who accept the manual ritual.
+
+### Auto-claim configuration
+
+```typescript
+import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+
+const cycleCfg: CycleConfig = {
+  pool,
+  connection,
+  hotKeypair,                                   // also owns the stake positions
+  agentTokenMint: new PublicKey('…'),
+  tokenProgramId: TOKEN_2022_PROGRAM_ID,
+  thresholdLamports: 100_000_000n,
+  maxPerCycleLamports: 1_000_000_000n,
+  slippageBps: 100,
+  autoClaim: {
+    telecoinIds: ['0x…'],                       // optional — filter to a specific telecoin
+    minClaimableLamports: 10_000_000n,          // 0.01 SOL floor, avoid dust claims + tx fee waste
+    // printrOptions?: { apiKey, apiBase, timeoutMs }
+  },
+};
+```
+
+### Phase order when autoClaim is set
+
+1. **Phase 0 — Recovery** (unchanged). Runs first; a swap-succeeded-burn-failed state from a previous cycle is resolved before any new work. Recovery burns are not mixed with claim-delivered tokens.
+2. **Phase 0.5 — Claim (NEW).** `claimAllAboveThreshold(ownerKeypair=hotKeypair, telecoinIds, minClaimableLamports, connection)` — queries `/v1/staking/list-positions-with-rewards`, filters positions with claimable SOL ≥ threshold, submits one claim tx. SOL lands in the hot wallet; claimed telecoin rewards land in the hot ATA alongside what the swap will deliver.
+3. **Phase 1 — Swap** (unchanged). startCycle snapshots the ATA balance pre-swap and uses the delta for slippage verification — so claimed telecoin rewards pre-populating the ATA don't hide a slippage-busted swap.
+4. **Phase 2 — Burn** (updated). Passes the **total ATA balance** (claimed + bought) to `burnAgentTokens` in a single burn ix. Both the claimed telecoin rewards and the freshly-bought telecoin are destroyed in one tx.
+
+### CycleResult — claim field
+
+`CycleResult` gains an optional `claim?: ClaimPhaseResult` field on `completed`, `noop`, and `failed` variants:
+
+```typescript
+interface ClaimPhaseResult {
+  signature: string;
+  claimedLamports: bigint;
+  claimedTelecoinAtomic: bigint;
+  positionsClaimed: number;
+}
+```
+
+Null when `autoClaim` wasn't configured OR nothing was above the threshold.
+
+### New failure stage
+
+`'failed'` CycleResult's `stage` enum gains `'claim'` for claim-phase failures (Printr API errors, sign-send failures, etc.). The partial `claim?` field may or may not be present depending on where in the claim phase it died.
 
 ## Environment Variables
 

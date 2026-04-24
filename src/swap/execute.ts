@@ -96,17 +96,33 @@ export class SwapBelowMinimumError extends Error {
  *  a seed / parsing discriminator, so classic-SPL defaults against a
  *  Token-2022 mint return the wrong ATA address and would falsely throw
  *  `TokenAccountNotFoundError` every cycle. **[Printr]** — many Printr POB
- *  tokens graduated post-mid-2025 are Token-2022. */
+ *  tokens graduated post-mid-2025 are Token-2022.
+ *
+ *  `preSwapBalance` is the ATA's balance snapshotted BEFORE the swap
+ *  submission. When provided, the slippage check compares the delta
+ *  (`account.amount - preSwapBalance`) against minOutAmount rather than
+ *  the absolute amount. Required if the ATA may have been pre-funded
+ *  (e.g. by an earlier `/staking/claim-rewards` call that delivered
+ *  telecoin rewards into the same ATA); without it, the check would pass
+ *  trivially because the pre-existing balance already exceeds minOut,
+ *  hiding a zero-fill swap. Omit on a cold ATA and the legacy absolute
+ *  check runs. */
 export async function verifySwapOutput(
   connection: Connection,
   outputMint: PublicKey,
   owner: PublicKey,
   minOutAmount: bigint,
   tokenProgramId: PublicKey = SPL_TOKEN_PROGRAM_ID,
+  preSwapBalance?: bigint,
 ): Promise<bigint> {
   const ata = await getAssociatedTokenAddress(outputMint, owner, false, tokenProgramId);
   const account = await getAccount(connection, ata, 'confirmed', tokenProgramId);
-  if (account.amount < minOutAmount) {
+  if (preSwapBalance !== undefined) {
+    const delta = account.amount - preSwapBalance;
+    if (delta < minOutAmount) {
+      throw new SwapBelowMinimumError(delta, minOutAmount);
+    }
+  } else if (account.amount < minOutAmount) {
     throw new SwapBelowMinimumError(account.amount, minOutAmount);
   }
   return account.amount;
