@@ -536,6 +536,16 @@ export async function runBuybackCycle(cfg?: { dryRun?: boolean }): Promise<Cycle
 }
 ```
 
+## Maturity status
+
+| Component | Status |
+|---|---|
+| `runBuybackCycle` — swap + burn cycle | **Production-verified** — first live cycle on $INKED 2026-04-24 (540M INKED burned, Solscan-confirmed) |
+| `CycleConfig.tokenProgramId` — Token-2022 support | **Production-verified** — used by the first live cycle |
+| Recovery mode (swap-succeeds-burn-fails) | Unit-tested, not triggered in production yet |
+| `simulateSwap` dry-run | **Live-tested** on $INKED mainnet pre-deployment |
+| `autoClaim` phase (this skill, new in 0.2.0) | **Preview** — code complete, 106 tests pass, NOT yet run live. Blast-radius-widening (creator key on server); read §Funding sources carefully before enabling |
+
 ## How POB Model-1 Fee Distribution Actually Works
 
 **Important mechanism clarification — verified empirically 2026-04-23 against $INKED:**

@@ -14,8 +14,11 @@ npm-debug.log*
 .env.local
 .env.*.local
 
-# Build artifacts — none expected for a docs-only skill repo, but guard anyway
-dist/
+# Build artifacts. dist/ IS tracked — consumers installing via
+# `npm install github:AIEngineerX/printr-agent-skills#<sha>` don't
+# necessarily have tsc available, so committed dist/ lets them import
+# the compiled output without a build step. The `prepare` npm script
+# re-runs the build for anyone modifying src/ locally.
 build/
 .cache/
 

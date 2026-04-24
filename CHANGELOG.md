@@ -4,6 +4,29 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-24
+
+**First production cycle lands.** `runBuybackCycle` executed its first
+live mainnet run against $INKED (graduated Token-2022 POB telecoin) on
+2026-04-24 — 0.16 SOL spent, 540.26M $INKED bought, 540.26M $INKED
+burned, supply verifiably reduced. Solscan: [swap](https://solscan.io/tx/qDQwNKVqsSbZLL4JZ7QwSy2y9oPtHx5wXCkLnfsDCCAESLf2kW2fqZDLRo8BCp6z9rFnXnpgPhCh3LxRJj5613E), [burn](https://solscan.io/tx/5pvuDM4dcPJf3mff57uSvLUQrWBTB2Jp3bvfPtSKA9oohnGQh5ZLtenMsB2JsaaWuMSfpM9pBG4TLkXXjMKNMyZz).
+
+### Maturity status
+
+- `runBuybackCycle` + `tokenProgramId` + `simulateSwap`: **Production-verified** on $INKED.
+- `autoClaim` (new in 0.2.0): **Preview** — code complete, unit-tested, not yet run live. Widens blast radius — see `printr-tokenized-agent/SKILL.md` §Funding sources before enabling.
+- `printr-agent-payments` skill: **Unproven in production** — 96 unit tests pass, no live invoice-flow verified end-to-end.
+- Recovery mode: unit-tested, not triggered in production yet.
+
+### Breaking / adoption-relevant
+
+- **Package now ships a compiled `dist/`** and `main`/`exports` point at `./dist/index.js` + `./dist/<subpath>/index.js`. Previously `main` was the raw `./src/index.ts`, which broke bundlers that don't transform `.ts` files from `node_modules` (observed: Netlify Edge Functions / Deno, some Cloudflare Workers configs). Node-runtime hosts (Netlify Functions, Vercel, Railway, Fly, AWS Lambda, plain Node) now import cleanly without any bundler gymnastics.
+- **`src/` still ships** alongside dist, and the `prepare` npm script rebuilds dist on `npm install` from a git URL — adopters can modify src and reinstall without committing dist themselves.
+- **`CycleConfig` gained optional fields** across 0.1 → 0.2: `tokenProgramId`, `autoClaim`. Not breaking for existing adopters (both default sensibly), but classic-SPL adopters should now explicitly set `tokenProgramId: TOKEN_PROGRAM_ID` if their token is NOT Token-2022, to make the choice visible.
+- **`verifySwapOutput` gained a 6th optional param** (`preSwapBalance`). Additive; existing call sites work unchanged.
+- **`StartCycleResult.swapped` gained `totalAtaAmount`**. If you destructure the result you may need to adjust.
+- **`CycleResult` variants gained optional `claim?: ClaimPhaseResult`** + `'failed'` gained a new `'claim'` stage. Exhaustive switches may need a new branch.
+
 ### Added — staking claim primitive + autoClaim in runBuybackCycle
 
 - **New `@printr/agent-skills/staking` module** — `listPositionsWithRewards`, `claimRewards`, `claimAllAboveThreshold`. Wraps Printr's `/v1/staking/list-positions-with-rewards` + `/v1/staking/claim-rewards`, signs the server-encoded claim tx with the owner keypair, submits + confirms. Public JWT default auth, partner key override via `options.apiKey`.

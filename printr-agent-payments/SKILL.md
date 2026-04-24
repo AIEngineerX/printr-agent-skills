@@ -7,6 +7,10 @@ metadata:
   version: '1.0'
 ---
 
+## Maturity status
+
+**Unproven in production.** 96 unit tests cover invoice creation, memo generation, on-chain verification matchers (SOL + USDC), and replay-protection edges. Coverage is real but no production adopter has yet run a full user-payment → server-verify → paid-action-delivery flow in the wild. If you're the first, please open an issue with results. Matches the $INKED reference implementation's scope decision (POSITIONING.md §2 rules out pay-for-Ink-attention models), so this skill hasn't been exercised by the kit's primary adopter either.
+
 ## Before Starting Work
 
 **MANDATORY — Do NOT write or modify any code until every item below is answered by the user:**

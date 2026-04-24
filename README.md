@@ -169,16 +169,24 @@ Grep for `[derived]` in any SKILL.md to see exactly what's my call vs. what's up
 
 Adopters: PR yourself into this table **after** you've run at least one production buyback cycle — please link to a burn tx on Solscan as evidence.
 
-## Platforms / Hosts — Compatibility Matrix
+## Runtime compatibility
 
-Compatibility assessed by inspection of each host's documented runtime + the skill's dependency profile. **None of these hosts have been end-to-end verified with a live cycle yet** — if you're the first to deploy on one of them, please share feedback via a GitHub issue.
+The kit depends transitively on `@solana/web3.js` and `@solana/spl-token`, which use Node APIs (`node:buffer`, dynamic `require`). This imposes runtime constraints. As of 0.2.0 the kit publishes a compiled `dist/` so bundler-TS-resolution is no longer an adopter concern; the remaining compatibility axis is the runtime itself.
 
-| Host                                      | Compatibility                                    | Notes                                                                                      |
-| ----------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| Netlify (SvelteKit + Scheduled Functions) | Expected to work — not yet verified live         | `netlify.toml` cron pattern; scheduled functions run in Node runtime                       |
-| Vercel (Next.js + Cron)                   | Expected to work — not yet verified live         | `vercel.json` crons; validate `CRON_SECRET` header                                         |
-| Cloudflare Workers                        | Partial — buyback cron requires Node-compat mode | `@solana/web3.js` uses Node APIs; Edge routes for invoice accept/verify are Workers-native |
-| Railway / Fly / generic Node              | Expected to work — standard Node runtime         |                                                                                            |
+| Host / runtime                                 | Status                      | Notes                                                                                                                |
+| ---------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Netlify Functions** (Node 22.x)              | ✅ **Production-verified**   | Used by the $INKED reference implementation — see `github.com/AIEngineerX/inked` commit `e45cbfe` for wiring         |
+| Vercel Cron (Node)                             | ✅ Expected to work          | `vercel.json` crons; validate `CRON_SECRET` header                                                                   |
+| Railway / Fly / plain Node                     | ✅ Expected to work          | Standard Node 18+ runtime                                                                                            |
+| AWS Lambda (Node)                              | ✅ Expected to work          | Node 18+ runtime, import `from '@printr/agent-skills/tokenized-agent'`                                               |
+| GitHub Actions (scheduled)                     | ✅ Expected to work          | `ubuntu-latest` + `actions/setup-node@v4`                                                                            |
+| **Netlify Edge Functions** (Deno)              | ❌ **Not supported**         | Deno rejects `Dynamic require of "node:buffer"` inside `@solana/web3.js`. Move the cycle to a regular Netlify Function (Node) — see the $INKED reference implementation for the pattern |
+| Cloudflare Workers (default)                   | ⚠ Partial                   | Default V8 isolate has the same issues as Deno. `nodejs_compat` flag + a bundler that provides `node:buffer` polyfill may work — not verified live yet |
+| Vercel Edge Runtime                            | ❌ Not supported             | Same Node-API issue as Netlify Edge                                                                                  |
+
+### The $INKED reference implementation's inlining choice
+
+`github.com/AIEngineerX/inked` inlines the kit's cycle logic directly in its Netlify Function (`netlify/functions/ink-buyback-background.mts`) rather than importing from `@printr/agent-skills`. The history on that commit (`e45cbfe`, "fix(ink-buyback): inline kit logic to avoid bundler issue") traces to a 0.1.0-era bundler quirk where Netlify's esbuild stripped the handler when the kit was imported. **0.2.0's compiled `dist/` removes that quirk** — future adopters can safely `import` instead of inlining. Inked's inlined code remains faithful to the 0.2.0 primitives; migration to a clean import is optional future work.
 
 ## Runtime requirements
 

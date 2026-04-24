@@ -1,19 +1,37 @@
 {
   "name": "@printr/agent-skills",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Claude Code skills + reference implementation for building tokenized-agent revenue loops on Printr POB tokens",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./swap": "./src/swap/index.ts",
-    "./payments": "./src/payments/index.ts",
-    "./staking": "./src/staking/index.ts",
-    "./tokenized-agent": "./src/tokenized-agent/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./swap": {
+      "types": "./dist/swap/index.d.ts",
+      "default": "./dist/swap/index.js"
+    },
+    "./payments": {
+      "types": "./dist/payments/index.d.ts",
+      "default": "./dist/payments/index.js"
+    },
+    "./staking": {
+      "types": "./dist/staking/index.d.ts",
+      "default": "./dist/staking/index.js"
+    },
+    "./tokenized-agent": {
+      "types": "./dist/tokenized-agent/index.d.ts",
+      "default": "./dist/tokenized-agent/index.js"
+    }
   },
+  "files": ["dist", "src", "printr-*/", "README.md", "CHANGELOG.md", "LICENSE"],
   "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:live": "SKILL_LIVE=1 vitest run",
