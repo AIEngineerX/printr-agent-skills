@@ -16,7 +16,7 @@ This repository contains **Agent Skill documentation + a reference TypeScript im
 - Compromise of an adopter's treasury wallet due to custody mistakes. See [`printr-tokenized-agent/references/CUSTODY_PATTERNS.md`](./printr-tokenized-agent/references/CUSTODY_PATTERNS.md) for the adopter's checklist. The kit is custody-agnostic; we document the patterns but do not operate anyone's treasury.
 - Bugs in `@solana/web3.js`, Jupiter's Swap API, Printr's on-chain program, Meteora pools, or any other upstream dependency. Report those to their respective maintainers.
 - Smart-contract bugs in Printr's Solana program (`T8HsGYv7sMk3kTnyaRqZrbRPuntYzdh12evXBkprint`) — report to Printr via `@VikrewW` on Telegram.
-- Business-logic bugs in a consumer project built on top of the skills (e.g. $INKED) — report to that project's maintainers.
+- Business-logic bugs in a consumer project built on top of the skills — report to that project's maintainers, not here.
 
 ## Reporting a vulnerability
 
@@ -30,7 +30,9 @@ This creates a private advisory visible only to maintainers and you. GitHub trac
 
 ### Alternative channels
 
-- **X DM**: [@Inkedbrrr](https://x.com/Inkedbrrr)
+Maintainer contact (for reports that can't go through GitHub PVR):
+
+- **X**: [@Inkedbrrr](https://x.com/Inkedbrrr)
 - **Telegram**: [t.me/inkedbrr](https://t.me/inkedbrr)
 
 ### What to include
@@ -65,7 +67,7 @@ There are no long-term support branches. Always pull from `main` for the latest 
 
 The repository is intentionally public and MIT-licensed. The following identifiers appear in the documentation and are **public by design** (already public on-chain or via Printr's public API):
 
-- SPL token mints (e.g. `2qEFJDknuak6xTCkDV7QgPyWRKvMhjvV1Spisgadbrrr` — $INKED)
+- SPL token mints (the `EXAMPLE_MINT` / `LIVE_TEST_MINT` defaults in `scripts/` and `tests/` are real mainnet mints used as smoke-test examples — public on-chain identifiers)
 - Printr telecoin IDs (hex)
 - Meteora DAMM v2 pool keys
 - Standard Solana program IDs (System, Token, Memo, Compute Budget, Meteora)
