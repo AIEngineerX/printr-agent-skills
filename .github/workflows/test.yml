@@ -15,7 +15,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['18', '20', '22']
+        # Node 18 is dropped from CI: vitest 4.x's transitive rolldown dep imports
+        # `styleText` from `node:util`, which was added in Node 20.12. The KIT's
+        # compiled runtime code (dist/) still works on Node 18 — only the test
+        # toolchain requires 20+. package.json `engines.node` stays at ">=18"
+        # for runtime adopters; the matrix here is just what we test against.
+        node: ['20', '22']
     steps:
       - uses: actions/checkout@v4
 
