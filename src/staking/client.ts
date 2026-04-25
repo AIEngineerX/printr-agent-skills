@@ -8,7 +8,7 @@
 //   POST /v1/staking/list-positions-with-rewards  — read claimable rewards
 //   POST /v1/staking/claim-rewards                — get unsigned claim tx
 
-import type { Connection, Keypair } from '@solana/web3.js';
+import type { AddressLookupTableAccount, Connection, Keypair } from '@solana/web3.js';
 import { VersionedTransaction, TransactionMessage, PublicKey } from '@solana/web3.js';
 import { OnChainConfirmError } from '../swap/index.js';
 
@@ -51,6 +51,12 @@ export interface StakePositionInfo {
   telecoin_id: string;
   owner: string;
   position: string;
+  /**
+   * The signature of the transaction that opened this position. Required
+   * by Printr's `/staking/claim-rewards` endpoint as a stable handle for
+   * the position — without it the request fails with "creation_tx is required".
+   */
+  creation_tx: string;
   lock_period:
     | 'STAKING_LOCK_PERIOD_SEVEN_DAYS'
     | 'STAKING_LOCK_PERIOD_FOURTEEN_DAYS'
@@ -153,10 +159,17 @@ interface ClaimResponse {
 
 /** Amounts reported by a successful claim, per position + aggregated. */
 export interface ClaimResult {
+  /**
+   * Comma-joined claim signatures, in submission order. Printr's
+   * `/staking/claim-rewards` accepts only one position per call, so an
+   * N-position claim produces N signatures rather than one combined tx.
+   * Each signature is a separate on-chain claim transaction.
+   */
   signature: string;
   /** Per-position claimed amounts. Order matches the input `positionIds`. */
   perPosition: Array<{
     position: string;
+    signature: string;
     claimedQuoteLamports: bigint;
     claimedTelecoinAtomic: bigint;
   }>;
@@ -172,9 +185,11 @@ export interface ClaimResult {
  * signature plus the pre-claim claimable amounts — "what the claim was
  * built for", should match on-chain delivery modulo fees / rounding.
  *
- * Printr server-encodes the Solana instruction bytes (SVM IDL not public);
- * this wrapper assembles them into a VersionedTransaction, signs, submits,
- * confirms.
+ * Printr's `/staking/claim-rewards` endpoint accepts one position per
+ * call (with its `creation_tx` as a required handle). N positions ⇒ N
+ * sequential claim transactions; failure of any aborts the loop, so any
+ * already-submitted claims stay on-chain and reward state diverges from
+ * what the caller requested. Verified against api-preview 2026-04-25.
  */
 export async function claimRewards(
   args: {
@@ -188,7 +203,8 @@ export async function claimRewards(
     throw new Error('claimRewards: positionIds must be non-empty');
   }
 
-  // Snapshot rewards-pre-claim so we can report what the claim delivered.
+  // Snapshot rewards-pre-claim so we can report what the claim delivered,
+  // and grab each position's `creation_tx` (required by claim-rewards).
   // The list endpoint filters by telecoin_ids, not position_ids — pull by
   // owner and filter client-side. Paginate until every requested positionId
   // is found; otherwise report the gap instead of silently undercounting.
@@ -199,9 +215,9 @@ export async function claimRewards(
   // request is 15s-timeout-bounded; without the cap this would compound
   // into minutes of blocking).
   const MAX_CLAIM_PAGES = 20;
-  const ownerCaip = solanaCaip10(args.owner.publicKey);
+  const payerCaip = solanaCaip10(args.owner.publicKey);
   const wanted = new Set(args.positionIds);
-  const matchedPositions: StakePositionWithRewards[] = [];
+  const matchedById = new Map<string, StakePositionWithRewards>();
   let cursor: string | undefined;
   let pagesFetched = 0;
   do {
@@ -212,7 +228,7 @@ export async function claimRewards(
     pagesFetched++;
     for (const p of page.positions) {
       if (wanted.has(p.info.position)) {
-        matchedPositions.push(p);
+        matchedById.set(p.info.position, p);
         wanted.delete(p.info.position);
       }
     }
@@ -233,55 +249,76 @@ export async function claimRewards(
     );
   }
 
-  // Ask Printr for the unsigned claim tx.
-  const claimResp = await printrPost<ClaimResponse>(
-    '/staking/claim-rewards',
-    {
-      owner: ownerCaip,
-      position_ids: args.positionIds,
-    },
-    options,
-  );
+  // One claim-rewards call per position, sequenced. Each returns its own
+  // unsigned tx with optional address-lookup-table — without applying the
+  // LUT the assembled VersionedTransaction exceeds the 1232-byte cap
+  // (verified empirically: ~1676 bytes raw without LUT for a single $INKED
+  // POB position). compileToV0Message(lookupTables) compresses to fit.
+  const perPosition: ClaimResult['perPosition'] = [];
+  const signatures: string[] = [];
+  for (const positionId of args.positionIds) {
+    const pos = matchedById.get(positionId)!;
+    const claimResp = await printrPost<ClaimResponse>(
+      '/staking/claim-rewards',
+      {
+        payer: payerCaip,
+        position: positionId,
+        creation_tx: pos.info.creation_tx,
+      },
+      options,
+    );
 
-  const instructions = claimResp.tx_payload.ixs.map((ix) => ({
-    programId: new PublicKey(ix.program_id),
-    keys: ix.accounts.map((a) => ({
-      pubkey: new PublicKey(a.pubkey),
-      isSigner: a.is_signer,
-      isWritable: a.is_writable,
-    })),
-    data: Buffer.from(ix.data, 'base64'),
-  }));
+    const instructions = claimResp.tx_payload.ixs.map((ix) => ({
+      programId: new PublicKey(ix.program_id),
+      keys: ix.accounts.map((a) => ({
+        pubkey: new PublicKey(a.pubkey),
+        isSigner: a.is_signer,
+        isWritable: a.is_writable,
+      })),
+      data: Buffer.from(ix.data, 'base64'),
+    }));
 
-  const { blockhash, lastValidBlockHeight } = await args.connection.getLatestBlockhash('confirmed');
+    let lookupTables: AddressLookupTableAccount[] = [];
+    if (claimResp.tx_payload.lookup_table) {
+      const lutAcct = await args.connection.getAddressLookupTable(
+        new PublicKey(claimResp.tx_payload.lookup_table),
+      );
+      if (lutAcct.value) lookupTables = [lutAcct.value];
+    }
 
-  const messageV0 = new TransactionMessage({
-    payerKey: args.owner.publicKey,
-    recentBlockhash: blockhash,
-    instructions,
-  }).compileToV0Message();
+    const { blockhash, lastValidBlockHeight } =
+      await args.connection.getLatestBlockhash('confirmed');
 
-  const tx = new VersionedTransaction(messageV0);
-  tx.sign([args.owner]);
+    const messageV0 = new TransactionMessage({
+      payerKey: args.owner.publicKey,
+      recentBlockhash: blockhash,
+      instructions,
+    }).compileToV0Message(lookupTables);
 
-  const signature = await args.connection.sendRawTransaction(tx.serialize(), {
-    skipPreflight: false,
-    maxRetries: 2,
-    preflightCommitment: 'confirmed',
-  });
-  const conf = await args.connection.confirmTransaction(
-    { signature, blockhash, lastValidBlockHeight },
-    'confirmed',
-  );
-  if (conf.value.err) {
-    throw new OnChainConfirmError('claim', conf.value.err);
+    const tx = new VersionedTransaction(messageV0);
+    tx.sign([args.owner]);
+
+    const signature = await args.connection.sendRawTransaction(tx.serialize(), {
+      skipPreflight: false,
+      maxRetries: 2,
+      preflightCommitment: 'confirmed',
+    });
+    const conf = await args.connection.confirmTransaction(
+      { signature, blockhash, lastValidBlockHeight },
+      'confirmed',
+    );
+    if (conf.value.err) {
+      throw new OnChainConfirmError('claim', conf.value.err);
+    }
+
+    perPosition.push({
+      position: positionId,
+      signature,
+      claimedQuoteLamports: BigInt(pos.claimable_quote_rewards?.atomic ?? '0'),
+      claimedTelecoinAtomic: BigInt(pos.claimable_telecoin_rewards?.atomic ?? '0'),
+    });
+    signatures.push(signature);
   }
-
-  const perPosition = matchedPositions.map((p) => ({
-    position: p.info.position,
-    claimedQuoteLamports: BigInt(p.claimable_quote_rewards?.atomic ?? '0'),
-    claimedTelecoinAtomic: BigInt(p.claimable_telecoin_rewards?.atomic ?? '0'),
-  }));
 
   const totalClaimedLamports = perPosition.reduce((acc, p) => acc + p.claimedQuoteLamports, 0n);
   const totalClaimedTelecoinAtomic = perPosition.reduce(
@@ -290,7 +327,7 @@ export async function claimRewards(
   );
 
   return {
-    signature,
+    signature: signatures.join(','),
     perPosition,
     totalClaimedLamports,
     totalClaimedTelecoinAtomic,

@@ -4,6 +4,33 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-04-25
+
+**`autoClaim` is now production-verified.** The first live claim+swap+burn cycle ran on 2026-04-25: claimed 4 INKED stake positions, swapped 1.0 SOL via Jupiter, and burned 3.91M INKED in a single cron tick. Solscan: [swap](https://solscan.io/tx/5XnC1cMxCWYpyGVjAWmaX3K2L2pM4MwHhpkbSwWmnjMm5Gtix9BAbhxWyT4rMZ6tUsxprrHzt2yNMGFFnuRWwGcy) · [burn](https://solscan.io/tx/FWV6tWNH4ofRSj1FMAh66v2NfcKtn5PWd1Lcuhu1gE6DEfjpi2yyvcPqCqrc191w9yWiUKiUnR8uBqLTFwSmLRz). Same cycle's recovery phase also fired live for the first time, burning 7,033,381 INKED stranded from a pre-cycle ATA balance: [recovery burn](https://solscan.io/tx/1aGFdfB2NCKUs6X4EP4EsMjLYiU6voymP7Mx8sWV5psuvMbaGPo1uJTjKXpWqRoEqhHtXUPowaBctzpK48Zr9hG).
+
+### Fixed — `claimRewards` request shape (four wrong assumptions about Printr's API)
+
+The 0.2.0 + 0.2.1 implementation of `claimRewards` was untested against live Printr API and made four incorrect assumptions that surfaced only when the first live auto-claim cycle ran on 2026-04-25. **Any adopter on 0.2.0 or 0.2.1 who set `CycleConfig.autoClaim` would have hit a 400 on every cron tick.** Pin 0.2.2 or later.
+
+The `/v1/staking/claim-rewards` endpoint at `api-preview.printr.money` actually expects:
+
+1. **`payer` field, not `owner`.** Sending `{owner: ...}` returned `invalid payer: invalid CAIP-10 format:` (with empty value — the parser fell through to a default empty string).
+2. **One position per call, with `position` field — NOT `position_ids` array.** Sending `{position_ids: [...]}` returned `invalid position: invalid CAIP-10 format:`. The endpoint only accepts a single position per request, so an N-position claim now produces N sequential claim transactions.
+3. **`creation_tx` field is required** — the position's creation transaction signature, available as `info.creation_tx` on `list-positions-with-rewards` responses. Without it the endpoint returns `parse request: creation_tx is required`.
+4. **`tx_payload.lookup_table` is nested under `tx_payload`, not at the top of the response.** Without applying the LUT via `compileToV0Message(lookupTables)`, the assembled VersionedTransaction is ~1676 bytes raw, exceeding the 1232-byte cap; sim fails with `VersionedTransaction too large: 1676 bytes (max: encoded/raw 1644/1232)`.
+
+Public-API surface impact:
+
+- `claimRewards()` signature unchanged (still takes `positionIds: string[]`), but loops sequentially internally — N claim-rewards calls, N submitted txs, N signatures.
+- `ClaimResult.signature` is now a comma-joined string of all per-position signatures rather than a single signature.
+- `ClaimResult.perPosition[]` entries gain a per-position `signature` field for routing each claim to its own Solscan link.
+- `StakePositionInfo` interface gains `creation_tx: string` to match the `list-positions-with-rewards` response shape.
+
+### Maturity status
+
+- `runBuybackCycle` + `tokenProgramId` + `simulateSwap` + `autoClaim` (this fix) + recovery mode: all **Production-verified** as of 2026-04-25 — see live-cycle Solscan links above and in `printr-tokenized-agent/SKILL.md` §Maturity status.
+- `printr-agent-payments` skill: still **unproven in production** — 96 unit tests pass, no live invoice-flow verified end-to-end.
+
 ## [0.2.1] — 2026-04-25
 
 ### Fixed

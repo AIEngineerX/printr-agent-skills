@@ -1,6 +1,6 @@
 {
   "name": "@printr/agent-skills",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Claude Code skills + reference implementation for building tokenized-agent revenue loops on Printr POB tokens",
   "private": true,
   "type": "module",

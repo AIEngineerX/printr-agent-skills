@@ -298,6 +298,7 @@ describe('runBuybackCycle — autoClaim threading', () => {
       perPosition: [
         {
           position: 'pos1',
+          signature: CLAIM_SIG,
           claimedQuoteLamports: 142_116_750n,
           claimedTelecoinAtomic: 5_000_000n,
         },

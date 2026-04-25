@@ -38,12 +38,14 @@ function fakePosition(overrides: {
   claimableQuoteLamports?: string;
   claimableTelecoinAtomic?: string;
   telecoinId?: string;
+  creationTx?: string;
 }): StakePositionWithRewards {
   return {
     info: {
       telecoin_id: overrides.telecoinId ?? TELECOIN_ID,
       owner: solanaCaip10(OWNER_PUBKEY),
       position: overrides.position,
+      creation_tx: overrides.creationTx ?? `creationTx_${overrides.position.slice(0, 8)}`,
       lock_period: 'STAKING_LOCK_PERIOD_SEVEN_DAYS',
       staked: { asset: 'x', decimals: 6, atomic: '5000000000' },
       created_at: '2026-01-01T00:00:00Z',
@@ -79,6 +81,7 @@ function fakeServerEncodedIx(payer: PublicKey) {
 
 function makeClaimTxConn(opts: { confirmErr?: unknown } = {}) {
   const sent: Uint8Array[] = [];
+  let sigSeq = 0;
   const conn = {
     async getLatestBlockhash() {
       return {
@@ -88,10 +91,19 @@ function makeClaimTxConn(opts: { confirmErr?: unknown } = {}) {
     },
     async sendRawTransaction(raw: Uint8Array) {
       sent.push(raw);
-      return 'ClaimSigReal000000000000000000000000000000000000000000000000';
+      // Distinct signatures per submission so multi-position claim tests
+      // can assert which tx confirmed which position.
+      const idx = sigSeq++;
+      return `ClaimSigReal${idx}${'0'.repeat(58 - String(idx).length - 12)}`;
     },
     async confirmTransaction() {
       return { value: { err: opts.confirmErr ?? null } };
+    },
+    // claimRewards optionally fetches an Address Lookup Table when the
+    // server response includes one. Tests don't return a lookup_table
+    // by default, so this call should never fire on the happy path.
+    async getAddressLookupTable() {
+      return { value: null };
     },
   };
   return { conn: conn as any, sent };
@@ -101,7 +113,7 @@ beforeEach(() => fetchMock.mockReset());
 afterEach(() => fetchMock.mockReset());
 
 describe('claimRewards — happy path against mocked Printr + real tx assembly', () => {
-  it('matches pre-claim amounts, builds + signs a v0 tx, returns aggregated totals', async () => {
+  it('matches pre-claim amounts, builds + signs one v0 tx PER position, returns aggregated totals', async () => {
     // First fetch: listPositionsWithRewards (snapshot).
     fetchMock.mockResolvedValueOnce(
       httpResponse({
@@ -110,16 +122,21 @@ describe('claimRewards — happy path against mocked Printr + real tx assembly',
             position: POS_1,
             claimableQuoteLamports: '142116750',
             claimableTelecoinAtomic: '5000000',
+            creationTx: 'creationTxForPos1',
           }),
           fakePosition({
             position: POS_2,
             claimableQuoteLamports: '87000000',
             claimableTelecoinAtomic: '2000000',
+            creationTx: 'creationTxForPos2',
           }),
         ],
       }),
     );
-    // Second fetch: claim-rewards (server-encoded tx).
+    // Two claim-rewards fetches — one per position.
+    fetchMock.mockResolvedValueOnce(
+      httpResponse({ tx_payload: { ixs: [fakeServerEncodedIx(OWNER.publicKey)] } }),
+    );
     fetchMock.mockResolvedValueOnce(
       httpResponse({ tx_payload: { ixs: [fakeServerEncodedIx(OWNER.publicKey)] } }),
     );
@@ -132,27 +149,37 @@ describe('claimRewards — happy path against mocked Printr + real tx assembly',
       connection: conn,
     });
 
-    expect(result.signature).toBe('ClaimSigReal000000000000000000000000000000000000000000000000');
+    // Two signatures, comma-joined.
+    expect(result.signature.split(',')).toHaveLength(2);
     expect(result.totalClaimedLamports).toBe(229_116_750n);
     expect(result.totalClaimedTelecoinAtomic).toBe(7_000_000n);
-    expect(result.perPosition).toEqual([
-      { position: POS_1, claimedQuoteLamports: 142_116_750n, claimedTelecoinAtomic: 5_000_000n },
-      { position: POS_2, claimedQuoteLamports: 87_000_000n, claimedTelecoinAtomic: 2_000_000n },
-    ]);
+    expect(result.perPosition.map((p) => p.position)).toEqual([POS_1, POS_2]);
+    expect(result.perPosition[0].claimedQuoteLamports).toBe(142_116_750n);
+    expect(result.perPosition[1].claimedQuoteLamports).toBe(87_000_000n);
+    // Each entry has its own per-position signature.
+    expect(result.perPosition[0].signature).not.toBe(result.perPosition[1].signature);
 
-    // Exactly one raw tx was submitted, and it deserializes as a v0
-    // VersionedTransaction signed by the owner.
-    expect(sent).toHaveLength(1);
-    const tx = VersionedTransaction.deserialize(sent[0]);
-    expect(tx.version).toBe(0);
-    expect(tx.signatures.length).toBeGreaterThan(0);
-    // First signature is non-zero (real ed25519 signature from owner).
-    expect(tx.signatures[0].some((byte) => byte !== 0)).toBe(true);
+    // Two raw txs were submitted, both deserialize as signed v0 txs.
+    expect(sent).toHaveLength(2);
+    for (const raw of sent) {
+      const tx = VersionedTransaction.deserialize(raw);
+      expect(tx.version).toBe(0);
+      expect(tx.signatures[0].some((byte) => byte !== 0)).toBe(true);
+    }
 
-    // Verify the claim HTTP request sent the right owner + positionIds.
-    const claimBody = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
-    expect(claimBody.owner).toBe(solanaCaip10(OWNER_PUBKEY));
-    expect(claimBody.position_ids).toEqual([POS_1, POS_2]);
+    // Verify each claim HTTP request sent the right per-position shape.
+    const call1Body = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+    expect(call1Body).toEqual({
+      payer: solanaCaip10(OWNER_PUBKEY),
+      position: POS_1,
+      creation_tx: 'creationTxForPos1',
+    });
+    const call2Body = JSON.parse((fetchMock.mock.calls[2][1] as RequestInit).body as string);
+    expect(call2Body).toEqual({
+      payer: solanaCaip10(OWNER_PUBKEY),
+      position: POS_2,
+      creation_tx: 'creationTxForPos2',
+    });
   });
 
   it('throws on on-chain confirm error without silently swallowing', async () => {
@@ -187,7 +214,10 @@ describe('claimRewards — happy path against mocked Printr + real tx assembly',
         positions: [fakePosition({ position: POS_3, claimableQuoteLamports: '9999' })],
       }),
     );
-    // claim-rewards call
+    // Two claim-rewards calls (one per position).
+    fetchMock.mockResolvedValueOnce(
+      httpResponse({ tx_payload: { ixs: [fakeServerEncodedIx(OWNER.publicKey)] } }),
+    );
     fetchMock.mockResolvedValueOnce(
       httpResponse({ tx_payload: { ixs: [fakeServerEncodedIx(OWNER.publicKey)] } }),
     );
@@ -199,10 +229,9 @@ describe('claimRewards — happy path against mocked Printr + real tx assembly',
       connection: conn,
     });
 
-    expect(result.perPosition).toEqual([
-      { position: POS_1, claimedQuoteLamports: 100n, claimedTelecoinAtomic: 0n },
-      { position: POS_3, claimedQuoteLamports: 9_999n, claimedTelecoinAtomic: 0n },
-    ]);
+    expect(result.perPosition.map((p) => p.position)).toEqual([POS_1, POS_3]);
+    expect(result.perPosition[0].claimedQuoteLamports).toBe(100n);
+    expect(result.perPosition[1].claimedQuoteLamports).toBe(9_999n);
     expect(result.totalClaimedLamports).toBe(10_099n);
 
     // Second list call sent the cursor from page 1.
@@ -263,7 +292,8 @@ describe('claimAllAboveThreshold — happy path', () => {
       }),
     );
     // Then claimRewards is called internally — it paginates its OWN list
-    // call first (to build the perPosition report), then claim-rewards.
+    // call first (to build the perPosition report), then issues one
+    // claim-rewards call per position.
     fetchMock.mockResolvedValueOnce(
       httpResponse({
         positions: [
@@ -271,6 +301,9 @@ describe('claimAllAboveThreshold — happy path', () => {
           fakePosition({ position: POS_2, claimableQuoteLamports: '80000000' }),
         ],
       }),
+    );
+    fetchMock.mockResolvedValueOnce(
+      httpResponse({ tx_payload: { ixs: [fakeServerEncodedIx(OWNER.publicKey)] } }),
     );
     fetchMock.mockResolvedValueOnce(
       httpResponse({ tx_payload: { ixs: [fakeServerEncodedIx(OWNER.publicKey)] } }),
@@ -287,7 +320,7 @@ describe('claimAllAboveThreshold — happy path', () => {
     expect(result).not.toBeNull();
     expect(result!.totalClaimedLamports).toBe(130_000_000n);
     expect(result!.perPosition.map((p) => p.position)).toEqual([POS_1, POS_2]);
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
 
     // First list call included the telecoin filter.
     const firstListBody = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);

@@ -24,6 +24,12 @@ export interface StakePositionInfo {
     telecoin_id: string;
     owner: string;
     position: string;
+    /**
+     * The signature of the transaction that opened this position. Required
+     * by Printr's `/staking/claim-rewards` endpoint as a stable handle for
+     * the position — without it the request fails with "creation_tx is required".
+     */
+    creation_tx: string;
     lock_period: 'STAKING_LOCK_PERIOD_SEVEN_DAYS' | 'STAKING_LOCK_PERIOD_FOURTEEN_DAYS' | 'STAKING_LOCK_PERIOD_THIRTY_DAYS' | 'STAKING_LOCK_PERIOD_SIXTY_DAYS' | 'STAKING_LOCK_PERIOD_NINETY_DAYS' | 'STAKING_LOCK_PERIOD_ONE_HUNDRED_EIGHTY_DAYS';
     staked: AssetAmount;
     created_at: string;
@@ -56,10 +62,17 @@ export declare function listPositionsWithRewards(args: {
 }, options?: PrintrClientOptions): Promise<ListPositionsResponse>;
 /** Amounts reported by a successful claim, per position + aggregated. */
 export interface ClaimResult {
+    /**
+     * Comma-joined claim signatures, in submission order. Printr's
+     * `/staking/claim-rewards` accepts only one position per call, so an
+     * N-position claim produces N signatures rather than one combined tx.
+     * Each signature is a separate on-chain claim transaction.
+     */
     signature: string;
     /** Per-position claimed amounts. Order matches the input `positionIds`. */
     perPosition: Array<{
         position: string;
+        signature: string;
         claimedQuoteLamports: bigint;
         claimedTelecoinAtomic: bigint;
     }>;
@@ -74,9 +87,11 @@ export interface ClaimResult {
  * signature plus the pre-claim claimable amounts — "what the claim was
  * built for", should match on-chain delivery modulo fees / rounding.
  *
- * Printr server-encodes the Solana instruction bytes (SVM IDL not public);
- * this wrapper assembles them into a VersionedTransaction, signs, submits,
- * confirms.
+ * Printr's `/staking/claim-rewards` endpoint accepts one position per
+ * call (with its `creation_tx` as a required handle). N positions ⇒ N
+ * sequential claim transactions; failure of any aborts the loop, so any
+ * already-submitted claims stay on-chain and reward state diverges from
+ * what the caller requested. Verified against api-preview 2026-04-25.
  */
 export declare function claimRewards(args: {
     owner: Keypair;
