@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-04-25
+
+### Fixed
+
+- **`scripts/verify-printr-mechanism.ts` no longer crashes on Fee Model #1 tokens.** The `/telecoin/buyback-burn-detail` endpoint returns 400 "telecoin does not have buyback and burn fee sink" for Model #1 (POB staking) tokens — the kit's primary target. The script was treating that 400 as a fatal error, so the [3] Verdict section never printed for the tokens adopters actually want to verify. Now catches the specific "fee sink" message, marks the endpoint as not-applicable with a clear explanation (model-1 tokens don't use Printr's native buyback — that's the entire reason adopters run THIS kit), and continues to the verdict. Any other upstream error still throws.
+
+### CI
+
+- **Drop Node 18 from the test matrix.** vitest@4's transitive `rolldown` dep imports `node:util`'s `styleText`, added in Node 20.12. CI's Node-18 leg failed at vitest startup before any tests ran. The kit's compiled runtime (`dist/`) still works on Node 18 — only the test toolchain requires 20+. `package.json` `engines.node` stays at `>=18` for runtime adopters; the matrix now tests 20 + 22.
+- **Format-check job catches prettier drift.** First green CI run on the new workflow proved the format gate works.
+
 ## [0.2.0] — 2026-04-24
 
 **First production cycle lands.** `runBuybackCycle` executed its first
