@@ -225,7 +225,7 @@ async function main() {
     console.log('      not applicable — telecoin is NOT Fee Model #3 (buyback+burn sink).');
     console.log('      This is expected for POB model-1 tokens, which is the primary target of');
     console.log('      this kit. Your buyback history is tracked on Solscan + your own burn_event');
-    console.log('      table, not Printr\'s model-3 feed.');
+    console.log("      table, not Printr's model-3 feed.");
   }
   console.log('');
 
@@ -257,7 +257,7 @@ async function main() {
   if (bb === null) {
     console.log('');
     console.log(`  Buyback history (model-3 endpoint) doesn't apply to this telecoin — see [2].`);
-    console.log('  Track your kit\'s buybacks via your own burn_event table + Solscan instead.');
+    console.log("  Track your kit's buybacks via your own burn_event table + Solscan instead.");
   } else if (bb.total_trades === 0) {
     console.log('');
     console.log('  No prior buybacks recorded. The tokenized-agent loop would be the first');
